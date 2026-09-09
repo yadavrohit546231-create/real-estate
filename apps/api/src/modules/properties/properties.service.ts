@@ -287,21 +287,50 @@ export class PropertiesService {
     };
   }
 
+  async getMyListings(userId: string) {
+    const properties = await prisma.property.findMany({
+      where: {
+        OR: [{ ownerId: userId }, { agentId: userId }],
+        status: { not: PropertyStatus.DELETED },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        images: { orderBy: { sortOrder: 'asc' } },
+        amenities: { include: { amenity: true } },
+      },
+    });
+
+    return properties;
+  }
+
   async updateProperty(propertyId: string, userId: string, userRole: UserRole, data: any) {
     const existing = await prisma.property.findUnique({ where: { id: propertyId } });
     if (!existing) throw new Error('Property not found');
 
     const isAdmin = userRole === UserRole.SUPER_ADMIN;
-    if (!isAdmin && existing.ownerId !== userId) {
+    if (!isAdmin && existing.ownerId !== userId && existing.agentId !== userId) {
       throw new Error('Forbidden: You are not authorized to edit this property');
     }
 
-    const { amenityIds, images, isDraft, ...updateFields } = data;
+    const { amenityIds, images, isDraft, listedAsRole, ...updateFields } = data;
 
-    // If owner edits a REJECTED property, it resets to DRAFT or PENDING_REVIEW if submitted
+    // Any edit to an existing property resets it for Super Admin review
     let nextStatus = existing.status;
-    if (existing.status === PropertyStatus.REJECTED && !isDraft) {
-      nextStatus = PropertyStatus.PENDING_REVIEW;
+    if (existing.status === PropertyStatus.REJECTED || existing.status === PropertyStatus.LIVE) {
+      nextStatus = isDraft ? PropertyStatus.DRAFT : PropertyStatus.PENDING_REVIEW;
+    }
+
+    // Update images if provided
+    if (images && images.length > 0) {
+      await prisma.propertyImage.deleteMany({ where: { propertyId } });
+      await prisma.propertyImage.createMany({
+        data: images.map((img: any, idx: number) => ({
+          propertyId,
+          url: img.url,
+          thumbnailUrl: img.thumbnailUrl || img.url,
+          sortOrder: idx,
+        })),
+      });
     }
 
     const updated = await prisma.property.update({
@@ -323,7 +352,7 @@ export class PropertiesService {
   async submitProperty(propertyId: string, userId: string) {
     const property = await prisma.property.findUnique({ where: { id: propertyId } });
     if (!property) throw new Error('Property not found');
-    if (property.ownerId !== userId) throw new Error('Unauthorized');
+    if (property.ownerId !== userId && property.agentId !== userId) throw new Error('Unauthorized');
 
     if (property.status !== PropertyStatus.DRAFT && property.status !== PropertyStatus.REJECTED) {
       throw new Error(`Cannot submit property with status '${property.status}'`);
@@ -345,8 +374,8 @@ export class PropertiesService {
     if (!property) throw new Error('Property not found');
 
     const isAdmin = userRole === UserRole.SUPER_ADMIN;
-    if (!isAdmin && property.ownerId !== userId) {
-      throw new Error('Unauthorized');
+    if (!isAdmin && property.ownerId !== userId && property.agentId !== userId) {
+      throw new Error('Unauthorized: You can only delete your own properties');
     }
 
     await prisma.property.update({

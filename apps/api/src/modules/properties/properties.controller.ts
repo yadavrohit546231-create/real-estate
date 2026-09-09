@@ -13,6 +13,16 @@ export class PropertiesController {
     }
   }
 
+  async getMyListings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) return sendError(res, 'Authentication required', 401);
+      const properties = await propertiesService.getMyListings(req.user.userId);
+      return sendSuccess(res, properties, 'User properties fetched successfully');
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to fetch user properties', 400);
+    }
+  }
+
   async getPropertyById(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;

@@ -86,6 +86,19 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.menuItem}
+          onPress={() => requireAuthNavigate('/my-properties', 'My Listed Properties')}
+        >
+          <View style={styles.menuItemLeft}>
+            <View style={[styles.iconWrap, { backgroundColor: '#ecfdf5' }]}>
+              <Home size={20} color="#10b981" />
+            </View>
+            <Text style={styles.menuItemText}>My Listed Properties (Manage)</Text>
+          </View>
+          <ChevronRight size={18} color="#94a3b8" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
           onPress={() => requireAuthNavigate('/leads', 'Received Leads')}
         >
           <View style={styles.menuItemLeft}>

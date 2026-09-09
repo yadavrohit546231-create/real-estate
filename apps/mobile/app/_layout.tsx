@@ -42,6 +42,14 @@ export default function RootLayout() {
           name="site-visits/index"
           options={{ title: 'Site Visits' }}
         />
+        <Stack.Screen
+          name="my-properties/index"
+          options={{ title: 'My Listed Properties' }}
+        />
+        <Stack.Screen
+          name="edit-property/[id]"
+          options={{ title: 'Edit Property' }}
+        />
       </Stack>
     </QueryClientProvider>
   );

@@ -10,6 +10,9 @@ import {
 
 const router = Router();
 
+// Current user listings
+router.get('/my/listings', authenticateToken, propertiesController.getMyListings);
+
 // Public / Filterable browsing
 router.get('/', optionalAuth, validateQuery(PropertyFilterQuerySchema), propertiesController.getProperties);
 router.get('/:id', optionalAuth, propertiesController.getPropertyById);
