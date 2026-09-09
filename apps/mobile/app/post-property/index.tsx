@@ -8,12 +8,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, Check, Save, Lock, ShieldAlert, Building2, UserCheck } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ArrowLeft, ArrowRight, Check, Save, Lock, ShieldAlert, Building2, UserCheck, UploadCloud } from 'lucide-react-native';
 import { useStore } from '../../store/useStore';
-import { mobileApi } from '../../services/api';
+import { mobileApi, mobileUploadImage, resolveImageUrl } from '../../services/api';
 import { formatPriceINR } from '@real-estate/shared';
 
 export default function PostPropertyScreen() {
@@ -22,6 +24,7 @@ export default function PostPropertyScreen() {
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Listing role is managed automatically based on user account type
   const isAgent = user?.role === 'AGENT';
@@ -113,6 +116,41 @@ export default function PostPropertyScreen() {
       setStep(step - 1);
     } else {
       router.back();
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Storage Access Required',
+          'Please allow photo library / storage access in your device settings to select property photos.'
+        );
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
+        return;
+      }
+
+      const selectedAsset = pickerResult.assets[0];
+      setUploadingImage(true);
+
+      const uploadedUrl = await mobileUploadImage(selectedAsset.uri);
+      setImageUrl(uploadedUrl);
+      Alert.alert('Upload Complete', 'Property photo uploaded from device successfully!');
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err.message || 'Could not upload photo from device.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -384,7 +422,39 @@ export default function PostPropertyScreen() {
               style={[styles.input, { height: 100 }]}
             />
 
-            <Text style={styles.inputLabel}>Primary Photo URL</Text>
+            <Text style={styles.inputLabel}>Property Photo</Text>
+            
+            {/* Device Storage Upload Button */}
+            <TouchableOpacity
+              style={styles.deviceUploadCard}
+              onPress={handlePickImage}
+              disabled={uploadingImage}
+            >
+              {uploadingImage ? (
+                <View style={styles.uploadingCenter}>
+                  <ActivityIndicator size="small" color="#2563eb" />
+                  <Text style={styles.uploadingText}>Uploading photo to server...</Text>
+                </View>
+              ) : imageUrl ? (
+                <View style={styles.uploadedPreviewWrap}>
+                  <Image source={{ uri: resolveImageUrl(imageUrl) }} style={styles.uploadedPhotoPreview} />
+                  <View style={styles.changePhotoOverlay}>
+                    <UploadCloud size={16} color="#ffffff" />
+                    <Text style={styles.changePhotoText}>Change Photo from Device</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.uploadPlaceholder}>
+                  <View style={styles.uploadIconWrap}>
+                    <UploadCloud size={24} color="#2563eb" />
+                  </View>
+                  <Text style={styles.uploadTitle}>Choose Photo from Device Storage</Text>
+                  <Text style={styles.uploadSubtitle}>Supports JPG, PNG from device gallery or files</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={[styles.inputLabel, { marginTop: 14 }]}>Or Enter Image URL</Text>
             <TextInput
               placeholder="https://..."
               value={imageUrl}
@@ -638,4 +708,75 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nextBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  deviceUploadCard: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    overflow: 'hidden',
+    minHeight: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadingCenter: {
+    alignItems: 'center',
+    padding: 24,
+  },
+  uploadingText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  uploadedPreviewWrap: {
+    width: '100%',
+    height: 160,
+    position: 'relative',
+  },
+  uploadedPhotoPreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  changePhotoOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  changePhotoText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  uploadPlaceholder: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  uploadIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  uploadTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  uploadSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
 });

@@ -68,3 +68,45 @@ export async function mobileApi<T = any>(
     throw new Error(err.message || 'Network error: could not connect to server.');
   }
 }
+
+export function resolveImageUrl(url?: string): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const serverOrigin = API_URL.replace(/\/api\/?$/, '');
+  return `${serverOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+export async function mobileUploadImage(uri: string): Promise<string> {
+  const filename = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
+  const match = /\.(\w+)$/.exec(filename);
+  const type = match ? `image/${match[1].toLowerCase()}` : `image/jpeg`;
+
+  const formData = new FormData();
+  formData.append('file', {
+    uri,
+    name: filename,
+    type,
+  } as any);
+
+  const url = `${API_URL}/upload`;
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    headers,
+  });
+
+  const json = await response.json();
+  if (!response.ok || !json.success) {
+    throw new Error(json.message || 'Image upload failed');
+  }
+
+  return resolveImageUrl(json.data.url);
+}
+

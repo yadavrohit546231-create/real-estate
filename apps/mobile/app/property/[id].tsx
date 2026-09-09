@@ -30,7 +30,7 @@ import {
   Edit3,
   Trash2,
 } from 'lucide-react-native';
-import { mobileApi } from '../../services/api';
+import { mobileApi, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
 import { formatPriceINR, buildWhatsAppLink } from '@real-estate/shared';
 
@@ -206,7 +206,7 @@ export default function PropertyDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Photo Carousel */}
         <View style={styles.galleryContainer}>
-          <Image source={{ uri: images[activePhoto]?.url }} style={styles.mainImage} />
+          <Image source={{ uri: resolveImageUrl(images[activePhoto]?.url) }} style={styles.mainImage} />
 
           {/* Badges */}
           <View style={styles.topBadgesRow}>
@@ -249,7 +249,7 @@ export default function PropertyDetailScreen() {
                 onPress={() => setActivePhoto(idx)}
                 style={[styles.thumbBox, activePhoto === idx && styles.thumbActive]}
               >
-                <Image source={{ uri: img.url }} style={styles.thumbImage} />
+                <Image source={{ uri: resolveImageUrl(img.url) }} style={styles.thumbImage} />
               </TouchableOpacity>
             ))}
           </ScrollView>

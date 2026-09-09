@@ -22,7 +22,7 @@ import {
   FileText,
   Building,
 } from 'lucide-react-native';
-import { mobileApi } from '../../services/api';
+import { mobileApi, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
 import { formatPriceINR } from '@real-estate/shared';
 
@@ -177,7 +177,7 @@ export default function MyPropertiesScreen() {
             return (
               <View key={prop.id} style={styles.propertyCard}>
                 <View style={styles.cardHeader}>
-                  <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
+                  <Image source={{ uri: resolveImageUrl(thumbnail) }} style={styles.thumbnail} />
                   <View style={styles.cardDetails}>
                     {renderStatusBadge(prop.status, prop.rejectionReason)}
                     <Text style={styles.propertyPrice}>

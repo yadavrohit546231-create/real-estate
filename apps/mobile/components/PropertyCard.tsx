@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-na
 import { Heart, CheckCircle, Sparkles, MapPin } from 'lucide-react-native';
 import { formatPriceINR } from '@real-estate/shared';
 import { useStore } from '../store/useStore';
+import { resolveImageUrl } from '../services/api';
 
 interface PropertyCardProps {
   property: any;
@@ -13,10 +14,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress })
   const { favorites, toggleFavorite, user } = useStore();
   const isFavorite = favorites.includes(property.id);
 
-  const imageUri =
+  const imageUri = resolveImageUrl(
     property.images?.[0]?.url ||
     property.primaryImage ||
-    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80';
+    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80'
+  );
 
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.card}>
