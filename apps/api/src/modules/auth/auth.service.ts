@@ -166,6 +166,35 @@ export class AuthService {
     return user;
   }
 
+  async switchRole(userId: string, targetRole: UserRole) {
+    if (targetRole !== UserRole.OWNER && targetRole !== UserRole.AGENT) {
+      throw new Error('Can only switch account role to OWNER or AGENT');
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { role: targetRole },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        status: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+
+    const tokens = this.generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role as UserRole,
+    });
+
+    return { user, tokens };
+  }
+
   private generateTokens(payload: { userId: string; email: string; role: UserRole }) {
     return {
       accessToken: signAccessToken(payload),

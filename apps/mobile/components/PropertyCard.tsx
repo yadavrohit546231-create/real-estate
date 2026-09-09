@@ -58,11 +58,25 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress })
           />
         </TouchableOpacity>
 
-        {/* Listing Type Tag */}
-        <View style={styles.listingTag}>
-          <Text style={styles.listingText}>
-            FOR {property.listingType || 'SALE'}
-          </Text>
+        {/* Tags Row */}
+        <View style={styles.tagsRow}>
+          <View style={styles.listingTag}>
+            <Text style={styles.listingText}>
+              FOR {property.listingType || 'SALE'}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.listerTag,
+              property.listerRole === 'AGENT' || property.owner?.role === 'AGENT'
+                ? styles.listerAgent
+                : styles.listerOwner,
+            ]}
+          >
+            <Text style={styles.listerText}>
+              {property.listerRole === 'AGENT' || property.owner?.role === 'AGENT' ? 'BY AGENT' : 'BY OWNER'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -178,10 +192,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  listingTag: {
+  tagsRow: {
     position: 'absolute',
     bottom: 12,
     left: 12,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  listingTag: {
     backgroundColor: 'rgba(15, 23, 42, 0.85)',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -191,6 +210,23 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  listerTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  listerOwner: {
+    backgroundColor: '#059669', // Emerald
+  },
+  listerAgent: {
+    backgroundColor: '#2563eb', // Blue
+  },
+  listerText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   content: {
     padding: 14,

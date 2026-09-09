@@ -11,6 +11,7 @@ import {
   TextInput,
   Linking,
   Share,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -83,25 +84,53 @@ export default function PropertyDetailScreen() {
 
   const handleCall = () => {
     if (!user) {
-      alert('Please log in to contact the property owner.');
-      router.push('/(auth)/login');
+      Alert.alert('Login Required', 'Please sign in to contact the property lister directly.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+      ]);
       return;
     }
-    if (property.owner?.phone) {
-      Linking.openURL(`tel:${property.owner.phone}`);
+    const phone = property.listedBy?.phone || property.owner?.phone;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
     }
   };
 
   const handleWhatsApp = () => {
     if (!user) {
-      alert('Please log in to message the property owner.');
-      router.push('/(auth)/login');
+      Alert.alert('Login Required', 'Please sign in to message the property lister on WhatsApp.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+      ]);
       return;
     }
-    if (property.owner?.phone) {
-      const url = buildWhatsAppLink(property.owner.phone, property.title, property.id);
+    const phone = property.listedBy?.phone || property.owner?.phone;
+    if (phone) {
+      const url = buildWhatsAppLink(phone, property.title, property.id);
       Linking.openURL(url);
     }
+  };
+
+  const handleOpenEnquiryModal = () => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please sign in to send an enquiry for this property.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+      ]);
+      return;
+    }
+    setEnquiryModalVisible(true);
+  };
+
+  const handleOpenVisitModal = () => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please sign in to schedule a site visit.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+      ]);
+      return;
+    }
+    setVisitModalVisible(true);
   };
 
   const handleSendEnquiry = async () => {
@@ -281,11 +310,50 @@ export default function PropertyDetailScreen() {
 
           {/* Owner / Agent Card */}
           <View style={styles.ownerCard}>
-            <Text style={styles.ownerCardHeading}>Posted By</Text>
-            <Text style={styles.ownerName}>{property.owner?.name || 'Property Owner'}</Text>
-            <Text style={styles.ownerContact}>
-              Contact: {property.owner?.phone || 'Login to view contact'}
-            </Text>
+            <View style={styles.ownerHeaderRow}>
+              <View
+                style={[
+                  styles.listerBadge,
+                  property.listedBy?.role === 'AGENT' || property.owner?.role === 'AGENT'
+                    ? styles.agentBadge
+                    : styles.ownerBadge,
+                ]}
+              >
+                <Text style={styles.listerBadgeText}>
+                  {property.listedBy?.role === 'AGENT' || property.owner?.role === 'AGENT'
+                    ? 'LISTED BY AGENT'
+                    : 'LISTED BY OWNER'}
+                </Text>
+              </View>
+              <Text style={styles.ownerName}>
+                {property.listedBy?.name || property.owner?.name || 'Property Owner'}
+              </Text>
+              {property.listedBy?.agencyName && (
+                <Text style={styles.agencyText}>Agency: {property.listedBy.agencyName}</Text>
+              )}
+            </View>
+
+            {user ? (
+              <View style={styles.contactVerifiedBox}>
+                <Text style={styles.ownerContactLabel}>Verified Phone Contact:</Text>
+                <Text style={styles.ownerContactValue}>
+                  {property.listedBy?.phone || property.owner?.phone || 'Available on request'}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.loginToViewCard}
+                onPress={() => router.push('/(auth)/login')}
+              >
+                <Text style={styles.loginToViewTitle}>🔒 Contact details hidden</Text>
+                <Text style={styles.loginToViewSub}>
+                  Sign in to view direct phone number and connect with the {property.listedBy?.role === 'AGENT' || property.owner?.role === 'AGENT' ? 'agent' : 'owner'}.
+                </Text>
+                <View style={styles.loginToViewBtn}>
+                  <Text style={styles.loginToViewBtnText}>Sign In to View Contact</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -304,7 +372,7 @@ export default function PropertyDetailScreen() {
 
         <TouchableOpacity
           style={styles.primaryActionBtn}
-          onPress={() => setEnquiryModalVisible(true)}
+          onPress={handleOpenEnquiryModal}
         >
           <Send size={16} color="#ffffff" />
           <Text style={styles.primaryActionText}>Enquire Now</Text>
@@ -312,7 +380,7 @@ export default function PropertyDetailScreen() {
 
         <TouchableOpacity
           style={styles.visitBtn}
-          onPress={() => setVisitModalVisible(true)}
+          onPress={handleOpenVisitModal}
         >
           <Calendar size={16} color="#ffffff" />
         </TouchableOpacity>
@@ -507,9 +575,60 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     marginTop: 20,
   },
-  ownerCardHeading: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
-  ownerName: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 4 },
-  ownerContact: { fontSize: 13, color: '#475569', marginTop: 2 },
+  ownerHeaderRow: {
+    marginBottom: 10,
+  },
+  listerBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  ownerBadge: {
+    backgroundColor: '#059669',
+  },
+  agentBadge: {
+    backgroundColor: '#2563eb',
+  },
+  listerBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ownerName: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  agencyText: { fontSize: 12, color: '#64748b', fontWeight: '600', marginTop: 2 },
+  contactVerifiedBox: {
+    marginTop: 10,
+    backgroundColor: '#f1f5f9',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  ownerContactLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
+  ownerContactValue: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 2 },
+  loginToViewCard: {
+    marginTop: 10,
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderStyle: 'dashed',
+  },
+  loginToViewTitle: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  loginToViewSub: { fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 17 },
+  loginToViewBtn: {
+    backgroundColor: '#2563eb',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  loginToViewBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
   bottomBar: {
     position: 'absolute',
     bottom: 0,

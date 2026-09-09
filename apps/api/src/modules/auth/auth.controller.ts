@@ -54,6 +54,19 @@ export class AuthController {
       return sendError(res, err.message || 'Failed to fetch user profile', 400);
     }
   }
+
+  async switchRole(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return sendError(res, 'Unauthorized', 401);
+      }
+      const { role } = req.body;
+      const result = await authService.switchRole(req.user.userId, role);
+      return sendSuccess(res, result, `Account switched to ${role} successfully`);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to switch role', 400);
+    }
+  }
 }
 
 export const authController = new AuthController();

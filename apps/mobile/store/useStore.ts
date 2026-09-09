@@ -18,7 +18,7 @@ interface AppState {
   favorites: string[]; // array of property IDs
   postPropertyDraft: Record<string, any>;
   setCity: (city: string) => void;
-  setUser: (user: MobileUser | null, token: string | null) => void;
+  setUser: (user: MobileUser | null, token?: string | null) => void;
   logout: () => void;
   toggleFavorite: (propertyId: string) => void;
   setFavorites: (propertyIds: string[]) => void;
@@ -34,8 +34,12 @@ export const useStore = create<AppState>((set) => ({
   postPropertyDraft: {},
   setCity: (city: string) => set({ selectedCity: city }),
   setUser: (user, token) => {
-    setApiAuthToken(token);
-    set({ user, token });
+    if (token !== undefined) {
+      setApiAuthToken(token);
+      set({ user, token });
+    } else {
+      set((state) => ({ user, token: state.token }));
+    }
   },
   logout: () => {
     setApiAuthToken(null);

@@ -84,6 +84,11 @@ export const CreatePropertySchema = z.object({
     )
     .optional(),
   isDraft: z.boolean().optional().default(false),
+  listedAsRole: z.enum([UserRole.OWNER, UserRole.AGENT]).optional(),
+});
+
+export const SwitchRoleSchema = z.object({
+  role: z.enum([UserRole.OWNER, UserRole.AGENT]),
 });
 
 export const UpdatePropertySchema = CreatePropertySchema.partial();

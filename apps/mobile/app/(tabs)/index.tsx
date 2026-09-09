@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,7 +19,7 @@ import { mobileApi } from '../../services/api';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { selectedCity } = useStore();
+  const { selectedCity, user } = useStore();
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -134,7 +135,20 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={styles.bannerBtn}
-            onPress={() => router.push('/post-property')}
+            onPress={() => {
+              if (!user) {
+                Alert.alert(
+                  'Login Mandatory',
+                  'You must be signed in to post or list your property.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+                  ]
+                );
+              } else {
+                router.push('/post-property');
+              }
+            }}
           >
             <Text style={styles.bannerBtnText}>Post Now</Text>
           </TouchableOpacity>

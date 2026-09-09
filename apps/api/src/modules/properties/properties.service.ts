@@ -100,7 +100,7 @@ export class PropertiesService {
         include: {
           images: { orderBy: { sortOrder: 'asc' } },
           amenities: { include: { amenity: true } },
-          owner: { select: { id: true, name: true, phone: true } },
+          owner: { select: { id: true, name: true, phone: true, role: true } },
         },
       }),
     ]);
@@ -112,12 +112,16 @@ export class PropertiesService {
         (requestingUser.role === UserRole.SUPER_ADMIN ||
           requestingUser.userId === prop.ownerId);
 
+      const listerRole = prop.owner?.role === UserRole.AGENT || !!prop.agentId ? 'AGENT' : 'OWNER';
+
       return {
         ...prop,
+        listerRole,
         owner: prop.owner
           ? {
               id: prop.owner.id,
               name: prop.owner.name,
+              role: prop.owner.role,
               phone: isOwnerOrAdmin ? prop.owner.phone : maskPhoneNumber(prop.owner.phone),
             }
           : null,
@@ -145,6 +149,8 @@ export class PropertiesService {
             email: true,
             phone: true,
             avatarUrl: true,
+            role: true,
+            agentProfile: true,
             createdAt: true,
           },
         },
@@ -153,6 +159,7 @@ export class PropertiesService {
             id: true,
             name: true,
             phone: true,
+            avatarUrl: true,
             agentProfile: true,
           },
         },
@@ -183,13 +190,52 @@ export class PropertiesService {
         }
       : null;
 
+    const isListerAgent = property.owner?.role === UserRole.AGENT || !!property.agentId;
+    const listerRole = isListerAgent ? 'AGENT' : 'OWNER';
+    const listerName = property.agent?.name || property.owner?.name || 'Property Owner';
+    const rawPhone = property.agent?.phone || property.owner?.phone || '';
+    const listerPhone = requestingUser ? rawPhone : (rawPhone ? maskPhoneNumber(rawPhone) : '');
+
     return {
       ...property,
+      listedBy: {
+        role: listerRole,
+        name: listerName,
+        phone: listerPhone,
+        isPhoneMasked: !requestingUser,
+        agencyName: property.agent?.agentProfile?.agencyName || property.owner?.agentProfile?.agencyName || null,
+      },
       owner: sanitizedOwner,
     };
   }
 
   async createProperty(userId: string, data: any) {
+    // 1. Upgrade user role if they are currently a BUYER (or explicit switch to AGENT/OWNER)
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    let updatedUserRole: UserRole | undefined;
+
+    const targetRole = data.listedAsRole === UserRole.AGENT ? UserRole.AGENT : UserRole.OWNER;
+    if (currentUser && currentUser.role === UserRole.BUYER) {
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { role: targetRole },
+      });
+      updatedUserRole = updated.role as UserRole;
+    } else if (
+      currentUser &&
+      data.listedAsRole &&
+      data.listedAsRole !== currentUser.role &&
+      currentUser.role !== UserRole.SUPER_ADMIN
+    ) {
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: { role: targetRole },
+      });
+      updatedUserRole = updated.role as UserRole;
+    }
+
+    const effectiveRole = updatedUserRole || currentUser?.role || UserRole.OWNER;
+
     // Check duplicate listing heuristic: same owner, city, locality, bedrooms, area, price
     const duplicate = await prisma.property.findFirst({
       where: {
@@ -203,13 +249,13 @@ export class PropertiesService {
     });
 
     const status = data.isDraft ? PropertyStatus.DRAFT : PropertyStatus.PENDING_REVIEW;
-
-    const { amenityIds, images, isDraft, ...propertyFields } = data;
+    const { amenityIds, images, isDraft, listedAsRole, ...propertyFields } = data;
 
     const newProperty = await prisma.property.create({
       data: {
         ...propertyFields,
         ownerId: userId,
+        agentId: effectiveRole === UserRole.AGENT ? userId : undefined,
         status,
         rejectionReason: duplicate ? '[Duplicate Warning: Matches existing listing parameters]' : null,
         images: images && images.length > 0
@@ -235,7 +281,10 @@ export class PropertiesService {
       },
     });
 
-    return newProperty;
+    return {
+      ...newProperty,
+      updatedUser: updatedUserRole ? { id: userId, role: updatedUserRole } : null,
+    };
   }
 
   async updateProperty(propertyId: string, userId: string, userRole: UserRole, data: any) {

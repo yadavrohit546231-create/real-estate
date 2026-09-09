@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   User,
@@ -21,6 +21,21 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     logout();
     router.replace('/(tabs)');
+  };
+
+  const requireAuthNavigate = (path: string, featureName: string) => {
+    if (!user) {
+      Alert.alert(
+        'Login Required',
+        `You need to be signed in to access ${featureName}.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+        ]
+      );
+      return;
+    }
+    router.push(path as any);
   };
 
   return (
@@ -58,7 +73,7 @@ export default function ProfileScreen() {
       <View style={styles.menuGroup}>
         <TouchableOpacity
           style={styles.menuItem}
-          onPress={() => router.push('/post-property')}
+          onPress={() => requireAuthNavigate('/post-property', 'Property Listing')}
         >
           <View style={styles.menuItemLeft}>
             <View style={[styles.iconWrap, { backgroundColor: '#eff6ff' }]}>
@@ -71,7 +86,7 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.menuItem}
-          onPress={() => router.push('/leads')}
+          onPress={() => requireAuthNavigate('/leads', 'Received Leads')}
         >
           <View style={styles.menuItemLeft}>
             <View style={[styles.iconWrap, { backgroundColor: '#f5f3ff' }]}>
@@ -84,7 +99,7 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.menuItem}
-          onPress={() => router.push('/site-visits')}
+          onPress={() => requireAuthNavigate('/site-visits', 'Site Visits')}
         >
           <View style={styles.menuItemLeft}>
             <View style={[styles.iconWrap, { backgroundColor: '#ecfdf5' }]}>

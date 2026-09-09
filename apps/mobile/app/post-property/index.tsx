@@ -9,18 +9,24 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, Check, Save } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Check, Save, Lock, ShieldAlert, Building2, UserCheck } from 'lucide-react-native';
 import { useStore } from '../../store/useStore';
 import { mobileApi } from '../../services/api';
 import { formatPriceINR } from '@real-estate/shared';
 
 export default function PostPropertyScreen() {
   const router = useRouter();
-  const { user, postPropertyDraft, updateDraft, clearDraft, selectedCity } = useStore();
+  const { user, setUser, postPropertyDraft, updateDraft, clearDraft, selectedCity } = useStore();
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+
+  // Lister role state (Owner vs Agent)
+  const [listedAsRole, setListedAsRole] = useState<'OWNER' | 'AGENT'>(
+    postPropertyDraft.listedAsRole || (user?.role === 'AGENT' ? 'AGENT' : 'OWNER')
+  );
 
   // Form State initialized from draft if existing
   const [listingType, setListingType] = useState(postPropertyDraft.listingType || 'SALE');
@@ -42,9 +48,41 @@ export default function PostPropertyScreen() {
     postPropertyDraft.imageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1200&q=80'
   );
 
+  // MANDATORY LOGIN GATE
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.unauthContainer}>
+          <View style={styles.unauthIconWrap}>
+            <Lock size={36} color="#2563eb" />
+          </View>
+          <Text style={styles.unauthTitle}>Login Required to Post Property</Text>
+          <Text style={styles.unauthSub}>
+            To protect verified buyers, prevent duplicate spam, and ensure authentic transactions, you must be signed in to list a property.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.unauthLoginBtn}
+            onPress={() => router.push('/(auth)/login')}
+          >
+            <Text style={styles.unauthLoginBtnText}>Sign In / Register Now</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.unauthBackBtn}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.unauthBackBtnText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Auto-save draft on step change
   const saveCurrentDraft = () => {
     updateDraft({
+      listedAsRole,
       listingType,
       category,
       propertyType,
@@ -81,14 +119,6 @@ export default function PostPropertyScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      Alert.alert('Login Required', 'You must log in to submit a property for listing.', [
-        { text: 'Cancel' },
-        { text: 'Login', onPress: () => router.push('/(auth)/login') },
-      ]);
-      return;
-    }
-
     if (!title || !description || !locality || !price || !area) {
       Alert.alert('Validation Error', 'Please complete all mandatory fields.');
       return;
@@ -117,6 +147,7 @@ export default function PostPropertyScreen() {
         pincode,
         images: [{ url: imageUrl, sortOrder: 0 }],
         isDraft: false, // will become PENDING_REVIEW automatically
+        listedAsRole,
       };
 
       const res = await mobileApi('/properties', {
@@ -124,10 +155,15 @@ export default function PostPropertyScreen() {
         body: JSON.stringify(payload),
       });
 
+      // Synchronize updated user role if converted from BUYER to OWNER/AGENT
+      if (res.data?.updatedUser?.role) {
+        setUser({ ...user, role: res.data.updatedUser.role });
+      }
+
       clearDraft();
       Alert.alert(
-        'Listing Submitted!',
-        'Your property has been submitted for Admin Review. Once verified, it will be published LIVE to buyers.',
+        'Listing Submitted for Review!',
+        `Your property has been submitted for Super Admin review. Your account profile is now set to ${res.data?.updatedUser?.role || listedAsRole}.\n\nOnce approved by Super Admin, it will be published LIVE with your ${listedAsRole === 'AGENT' ? 'Agent' : 'Owner'} contact details.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
       );
     } catch (err: any) {
@@ -156,10 +192,41 @@ export default function PostPropertyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-        {/* STEP 1: Basic Intent */}
+        {/* STEP 1: Lister Role & Basic Intent */}
         {step === 1 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>What do you want to do?</Text>
+            <Text style={styles.question}>I am listing this property as:</Text>
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={[styles.bigCard, listedAsRole === 'OWNER' && styles.bigCardActive]}
+                onPress={() => setListedAsRole('OWNER')}
+              >
+                <Text style={[styles.bigCardText, listedAsRole === 'OWNER' && styles.bigCardTextActive]}>
+                  Property Owner
+                </Text>
+                <Text style={styles.roleSubtext}>Direct Owner</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.bigCard, listedAsRole === 'AGENT' && styles.bigCardActive]}
+                onPress={() => setListedAsRole('AGENT')}
+              >
+                <Text style={[styles.bigCardText, listedAsRole === 'AGENT' && styles.bigCardTextActive]}>
+                  Real Estate Agent
+                </Text>
+                <Text style={styles.roleSubtext}>Broker / Consultant</Text>
+              </TouchableOpacity>
+            </View>
+
+            {user.role === 'BUYER' && (
+              <View style={styles.buyerUpgradeNotice}>
+                <ShieldAlert size={16} color="#b45309" />
+                <Text style={styles.buyerUpgradeNoticeText}>
+                  Your account is currently a <Text style={{ fontWeight: '700' }}>Buyer</Text>. It will automatically switch to <Text style={{ fontWeight: '700' }}>{listedAsRole === 'AGENT' ? 'Agent' : 'Owner'}</Text> upon posting.
+                </Text>
+              </View>
+            )}
+
+            <Text style={[styles.question, { marginTop: 24 }]}>What do you want to do?</Text>
             <View style={styles.optionsRow}>
               {[
                 { id: 'SALE', label: 'Sell Property' },
@@ -356,6 +423,23 @@ export default function PostPropertyScreen() {
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Review & Submit for Review</Text>
             <View style={styles.summaryCard}>
+              <View
+                style={[
+                  styles.summaryRoleTag,
+                  listedAsRole === 'AGENT'
+                    ? { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }
+                    : { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.summaryRoleTagText,
+                    listedAsRole === 'AGENT' ? { color: '#2563eb' } : { color: '#059669' },
+                  ]}
+                >
+                  {listedAsRole === 'AGENT' ? 'LISTED BY AGENT' : 'LISTED BY OWNER'}
+                </Text>
+              </View>
               <Text style={styles.summaryTitle}>{title || 'Untitled Property'}</Text>
               <Text style={styles.summaryPrice}>{formatPriceINR(Number(price || 0))}</Text>
               <Text style={styles.summaryLoc}>{locality}, {city}</Text>
@@ -364,7 +448,7 @@ export default function PostPropertyScreen() {
               </Text>
               <View style={styles.reviewAlert}>
                 <Text style={styles.reviewAlertText}>
-                  🛡️ Admin Review Rule: Newly posted properties enter "PENDING_REVIEW" and become LIVE once verified.
+                  🛡️ Admin Review Rule: Newly posted properties enter "PENDING_REVIEW" and become LIVE once verified by Super Admin.
                 </Text>
               </View>
             </View>
@@ -402,6 +486,58 @@ export default function PostPropertyScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
+  unauthContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#ffffff',
+  },
+  unauthIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  unauthTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  unauthSub: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  unauthLoginBtn: {
+    width: '100%',
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  unauthLoginBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  unauthBackBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  unauthBackBtnText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -431,6 +567,24 @@ const styles = StyleSheet.create({
   bigCardActive: { borderColor: '#2563eb', backgroundColor: '#eff6ff' },
   bigCardText: { fontSize: 14, fontWeight: '700', color: '#475569' },
   bigCardTextActive: { color: '#2563eb' },
+  roleSubtext: { fontSize: 11, color: '#64748b', marginTop: 3 },
+  buyerUpgradeNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  buyerUpgradeNoticeText: {
+    fontSize: 12,
+    color: '#92400e',
+    flex: 1,
+    lineHeight: 16,
+  },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -461,6 +615,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+  },
+  summaryRoleTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  summaryRoleTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   summaryTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   summaryPrice: { fontSize: 20, fontWeight: '800', color: '#2563eb', marginVertical: 4 },
