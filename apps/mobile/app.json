@@ -14,16 +14,40 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.estateplatform.app"
+      "bundleIdentifier": "com.estateplatform.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photos so you can select and upload property photos.",
+        "NSLocationWhenInUseUsageDescription": "EstatePlatform needs access to your GPS location to search properties near you and display your position on the map."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.estateplatform.app"
+      "package": "com.estateplatform.app",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VISUAL_USER_SELECTED",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload property photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "EstatePlatform needs your GPS location to find properties near you."
+        }
+      ]
     ]
   }
 }

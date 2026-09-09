@@ -15,9 +15,11 @@ interface AppState {
   user: MobileUser | null;
   token: string | null;
   selectedCity: string;
+  userLocation: { latitude: number; longitude: number } | null;
   favorites: string[]; // array of property IDs
   postPropertyDraft: Record<string, any>;
   setCity: (city: string) => void;
+  setUserLocation: (loc: { latitude: number; longitude: number } | null) => void;
   setUser: (user: MobileUser | null, token?: string | null) => void;
   logout: () => void;
   toggleFavorite: (propertyId: string) => void;
@@ -29,10 +31,12 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   user: null,
   token: null,
-  selectedCity: 'Patna',
+  selectedCity: 'All Cities',
+  userLocation: null,
   favorites: [],
   postPropertyDraft: {},
   setCity: (city: string) => set({ selectedCity: city }),
+  setUserLocation: (loc) => set({ userLocation: loc }),
   setUser: (user, token) => {
     if (token !== undefined) {
       setApiAuthToken(token);

@@ -29,12 +29,16 @@ export default function HomeScreen() {
   const fetchHomeData = async () => {
     try {
       setLoading(true);
+      const cityQuery = selectedCity && selectedCity !== 'All Cities'
+        ? `city=${encodeURIComponent(selectedCity)}&`
+        : '';
+
       // Fetch featured properties
-      const featuredRes = await mobileApi(`/properties?city=${selectedCity}&isFeatured=true&limit=6`);
+      const featuredRes = await mobileApi(`/properties?${cityQuery}isFeatured=true&limit=10`);
       setFeaturedProperties(featuredRes.data?.data || []);
 
-      // Fetch recommended/recent live properties
-      const recRes = await mobileApi(`/properties?city=${selectedCity}&limit=10`);
+      // Fetch all recommended/recent live properties
+      const recRes = await mobileApi(`/properties?${cityQuery}limit=30`);
       setRecommendedProperties(recRes.data?.data || []);
     } catch (err) {
       console.log('Error loading home data:', err);
@@ -97,7 +101,9 @@ export default function HomeScreen() {
         >
           <Search size={18} color="#94a3b8" />
           <Text style={styles.searchPlaceholder}>
-            Search locality, project or landmark in {selectedCity}...
+            {selectedCity === 'All Cities'
+              ? 'Search all listed properties, project or city...'
+              : `Search locality, project or landmark in ${selectedCity}...`}
           </Text>
         </TouchableOpacity>
 

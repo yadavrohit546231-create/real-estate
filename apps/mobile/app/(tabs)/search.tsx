@@ -10,21 +10,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Search as SearchIcon, SlidersHorizontal, Map, List, MapPin, X } from 'lucide-react-native';
+import { Search as SearchIcon, SlidersHorizontal, Map, List, Navigation, X } from 'lucide-react-native';
 import { PropertyCard } from '../../components/PropertyCard';
 import { FilterModal } from '../../components/FilterModal';
+import { GoogleMapView } from '../../components/GoogleMapView';
 import { useStore } from '../../store/useStore';
 import { mobileApi } from '../../services/api';
+import { requestAndFetchUserLocation } from '../../services/location';
+import { showToast } from '../../services/toast';
 import { formatPriceINR } from '@real-estate/shared';
 
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { selectedCity } = useStore();
+  const { selectedCity, setCity, userLocation, setUserLocation } = useStore();
 
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
   const [filters, setFilters] = useState<any>({
     listingType: params.listingType || undefined,
     category: params.category || undefined,
@@ -38,7 +42,7 @@ export default function SearchScreen() {
     try {
       setLoading(true);
       const query = new URLSearchParams({
-        city: selectedCity,
+        ...(selectedCity && selectedCity !== 'All Cities' && { city: selectedCity }),
         ...(search && { search }),
         ...(filters.listingType && { listingType: filters.listingType }),
         ...(filters.category && { category: filters.category }),
@@ -46,6 +50,7 @@ export default function SearchScreen() {
         ...(filters.minPrice && { minPrice: String(filters.minPrice) }),
         ...(filters.maxPrice && { maxPrice: String(filters.maxPrice) }),
         ...(filters.sortBy && { sortBy: filters.sortBy }),
+        limit: '50',
       });
 
       const res = await mobileApi(`/properties?${query.toString()}`);
@@ -55,6 +60,24 @@ export default function SearchScreen() {
       console.log('Search error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFetchGps = async () => {
+    try {
+      setFetchingLocation(true);
+      const loc = await requestAndFetchUserLocation();
+      if (loc) {
+        setUserLocation({ latitude: loc.latitude, longitude: loc.longitude });
+        if (loc.city) {
+          setCity(loc.city);
+          showToast(`Location set to ${loc.city}`, 'success');
+        } else {
+          showToast('GPS coordinates fetched successfully!', 'success');
+        }
+      }
+    } finally {
+      setFetchingLocation(false);
     }
   };
 
@@ -73,7 +96,11 @@ export default function SearchScreen() {
         <View style={styles.inputContainer}>
           <SearchIcon size={18} color="#94a3b8" />
           <TextInput
-            placeholder={`Search in ${selectedCity}...`}
+            placeholder={
+              selectedCity === 'All Cities'
+                ? 'Search all listed properties...'
+                : `Search in ${selectedCity}...`
+            }
             value={search}
             onChangeText={setSearch}
             onSubmitEditing={fetchResults}
@@ -87,6 +114,19 @@ export default function SearchScreen() {
           )}
         </View>
 
+        {/* GPS Location Button */}
+        <TouchableOpacity
+          style={styles.gpsButtonTop}
+          onPress={handleFetchGps}
+          disabled={fetchingLocation}
+        >
+          {fetchingLocation ? (
+            <ActivityIndicator size="small" color="#2563eb" />
+          ) : (
+            <Navigation size={18} color="#2563eb" />
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.filterButton}
           onPress={() => setFilterModalVisible(true)}
@@ -98,7 +138,7 @@ export default function SearchScreen() {
       {/* Sub-bar: Result count & View Mode Switcher */}
       <View style={styles.subBar}>
         <Text style={styles.resultCount}>
-          {totalCount} Properties Found in {selectedCity}
+          {totalCount} Properties Found {selectedCity === 'All Cities' ? 'Across All Locations' : `in ${selectedCity}`}
         </Text>
 
         <View style={styles.viewSwitcher}>
@@ -151,34 +191,38 @@ export default function SearchScreen() {
           }
         />
       ) : (
-        /* Interactive Map Preview View */
+        /* Interactive Google Map View */
         <View style={styles.mapContainer}>
-          <View style={styles.mapCanvas}>
-            <MapPin size={36} color="#2563eb" style={{ alignSelf: 'center', marginTop: 80 }} />
-            <Text style={styles.mapHeading}>Map View: {selectedCity}</Text>
-            <Text style={styles.mapSub}>Showing geo-located properties</Text>
-          </View>
+          <GoogleMapView
+            properties={properties}
+            userLocation={userLocation}
+            onSelectProperty={(id) => router.push(`/property/${id}`)}
+            onLocateMe={handleFetchGps}
+            selectedCity={selectedCity}
+          />
 
           {/* Bottom Card Carousel on Map */}
-          <View style={styles.mapCarouselWrap}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={properties}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.mapCard}
-                  onPress={() => router.push(`/property/${item.id}`)}
-                >
-                  <Text style={styles.mapCardPrice}>{formatPriceINR(item.price)}</Text>
-                  <Text style={styles.mapCardTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.mapCardLoc}>{item.locality}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
+          {properties.length > 0 && (
+            <View style={styles.mapCarouselWrap}>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={properties}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.mapCard}
+                    onPress={() => router.push(`/property/${item.id}`)}
+                  >
+                    <Text style={styles.mapCardPrice}>{formatPriceINR(item.price)}</Text>
+                    <Text style={styles.mapCardTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.mapCardLoc}>📍 {item.locality || item.city}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
         </View>
       )}
 
@@ -223,6 +267,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#0f172a',
+  },
+  gpsButtonTop: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterButton: {
     width: 42,

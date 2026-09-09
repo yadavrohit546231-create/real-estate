@@ -27,8 +27,6 @@ import {
   Layers,
   Compass,
   X,
-  Edit3,
-  Trash2,
 } from 'lucide-react-native';
 import { mobileApi, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
@@ -354,54 +352,6 @@ export default function PropertyDetailScreen() {
                 </View>
               )}
             </View>
-
-            {/* Owner / Lister Direct Management Actions */}
-            {user && (user.id === property.ownerId || user.id === property.agentId) && (
-              <View style={styles.manageListingCard}>
-                <Text style={styles.manageListingTitle}>Listing Management</Text>
-                <Text style={styles.manageListingSub}>
-                  You own or manage this listing. You can update details or delete it.
-                </Text>
-                <View style={styles.manageBtnsRow}>
-                  <TouchableOpacity
-                    style={styles.editListingBtn}
-                    onPress={() => router.push(`/edit-property/${property.id}`)}
-                  >
-                    <Edit3 size={15} color="#ffffff" />
-                    <Text style={styles.editListingBtnText}>Edit Property</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteListingBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        'Delete Property',
-                        'Are you sure you want to delete this listing? This action cannot be undone.',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Delete',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await mobileApi(`/properties/${property.id}`, { method: 'DELETE' });
-                                Alert.alert('Deleted', 'Property listing has been deleted.', [
-                                  { text: 'OK', onPress: () => router.replace('/my-properties') },
-                                ]);
-                              } catch (err: any) {
-                                Alert.alert('Error', err.message || 'Failed to delete listing');
-                              }
-                            },
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Trash2 size={15} color="#dc2626" />
-                    <Text style={styles.deleteListingBtnText}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
           </View>
         </View>
       </ScrollView>
@@ -774,60 +724,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalSubmitText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
-  manageListingCard: {
-    marginTop: 14,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    borderRadius: 12,
-    padding: 14,
-  },
-  manageListingTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1e40af',
-  },
-  manageListingSub: {
-    fontSize: 12,
-    color: '#3b82f6',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  manageBtnsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
-  editListingBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  editListingBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  deleteListingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fca5a5',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  deleteListingBtnText: {
-    color: '#dc2626',
-    fontSize: 13,
-    fontWeight: '700',
-  },
 });

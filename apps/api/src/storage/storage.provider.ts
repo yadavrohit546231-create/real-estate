@@ -25,7 +25,15 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async upload(file: Express.Multer.File): Promise<UploadedFileResult> {
-    const ext = path.extname(file.originalname);
+    let ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ext || ext === '.') {
+      if (file.mimetype === 'image/png') ext = '.png';
+      else if (file.mimetype === 'image/webp') ext = '.webp';
+      else if (file.mimetype === 'image/gif') ext = '.gif';
+      else if (file.mimetype === 'image/heic') ext = '.heic';
+      else if (file.mimetype === 'application/pdf') ext = '.pdf';
+      else ext = '.jpg';
+    }
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     const destination = path.join(this.uploadDir, uniqueName);
 

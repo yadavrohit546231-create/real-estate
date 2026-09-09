@@ -78,35 +78,126 @@ export function resolveImageUrl(url?: string): string {
   return `${serverOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
-export async function mobileUploadImage(uri: string): Promise<string> {
-  const filename = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
-  const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1].toLowerCase()}` : `image/jpeg`;
+export async function mobileUploadImage(
+  uri: string,
+  assetName?: string,
+  assetMimeType?: string,
+  base64?: string
+): Promise<string> {
+  let filename = assetName || uri.split('/').pop() || `photo_${Date.now()}.jpg`;
+  filename = filename.split('?')[0];
 
-  const formData = new FormData();
-  formData.append('file', {
-    uri,
-    name: filename,
-    type,
-  } as any);
-
-  const url = `${API_URL}/upload`;
-  const headers: Record<string, string> = {};
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
+  let type = assetMimeType;
+  if (!type || type === 'image') {
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1].toLowerCase() : 'jpg';
+    if (ext === 'jpg' || ext === 'jpeg') {
+      type = 'image/jpeg';
+    } else if (ext === 'png') {
+      type = 'image/png';
+    } else if (ext === 'webp') {
+      type = 'image/webp';
+    } else if (ext === 'heic') {
+      type = 'image/heic';
+    } else {
+      type = 'image/jpeg';
+    }
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData,
-    headers,
-  });
-
-  const json = await response.json();
-  if (!response.ok || !json.success) {
-    throw new Error(json.message || 'Image upload failed');
+  if (!filename.includes('.')) {
+    const extPart = type.split('/')[1] || 'jpg';
+    filename = `${filename}.${extPart === 'jpeg' ? 'jpg' : extPart}`;
   }
 
-  return resolveImageUrl(json.data.url);
+  const uploadUrl = `${API_URL}/upload`;
+
+  // Strategy 1: Direct JSON base64 upload if provided by ImagePicker (immune to all FormData bugs)
+  if (base64) {
+    try {
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          base64,
+          fileName: filename,
+          mimeType: type,
+        }),
+      });
+
+      const json = await response.json();
+      if (response.ok && json.success) {
+        return resolveImageUrl(json.data.url);
+      }
+    } catch (base64Err) {
+      console.warn('Direct base64 upload failed, trying blob conversion:', base64Err);
+    }
+  }
+
+  // Strategy 2: Convert local URI to Base64 via FileReader to bypass React Native FormData bugs
+  try {
+    const blobResponse = await fetch(uri);
+    const blob = await blobResponse.blob();
+
+    const base64FromBlob = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const resStr = reader.result as string;
+        const b64 = resStr.includes(',') ? resStr.split(',')[1] : resStr;
+        resolve(b64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        base64: base64FromBlob,
+        fileName: filename,
+        mimeType: type,
+      }),
+    });
+
+    const json = await response.json();
+    if (response.ok && json.success) {
+      return resolveImageUrl(json.data.url);
+    }
+  } catch (convErr) {
+    console.warn('Blob to Base64 conversion failed, falling back to RN FormData:', convErr);
+  }
+
+  // Strategy 3: RN object fallback
+  try {
+    const fallbackFormData = new FormData();
+    fallbackFormData.append('file', {
+      uri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: fallbackFormData,
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    });
+
+    const json = await response.json();
+    if (!response.ok || !json.success) {
+      throw new Error(json.message || 'Image upload failed');
+    }
+
+    return resolveImageUrl(json.data.url);
+  } catch (err: any) {
+    throw new Error(err.message || 'Could not upload photo from device.');
+  }
 }
 

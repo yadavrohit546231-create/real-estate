@@ -34,8 +34,8 @@ app.use(
 app.use('/api', apiRateLimiter);
 
 // Body Parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Static uploads serving
 app.use('/uploads', express.static(path.resolve(process.cwd(), ENV.UPLOAD_DIR)));

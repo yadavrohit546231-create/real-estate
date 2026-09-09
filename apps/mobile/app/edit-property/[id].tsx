@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Save, AlertCircle, Building2, Check, UploadCloud } from 'lucide-react-native';
+import { ArrowLeft, Save, AlertCircle, Building2, Check, UploadCloud, X, CheckCircle } from 'lucide-react-native';
 import { mobileApi, mobileUploadImage, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
+import { showToast } from '../../services/toast';
 import { formatPriceINR } from '@real-estate/shared';
 
 export default function EditPropertyScreen() {
@@ -26,23 +27,23 @@ export default function EditPropertyScreen() {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Form states
+  // Form states - no hardcoded dummy values
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [listingType, setListingType] = useState('SALE');
-  const [category, setCategory] = useState('RESIDENTIAL');
-  const [propertyType, setPropertyType] = useState('APARTMENT');
+  const [listingType, setListingType] = useState('');
+  const [category, setCategory] = useState('');
+  const [propertyType, setPropertyType] = useState('');
   const [price, setPrice] = useState('');
   const [area, setArea] = useState('');
-  const [bedrooms, setBedrooms] = useState('3');
-  const [bathrooms, setBathrooms] = useState('2');
-  const [floorNumber, setFloorNumber] = useState('1');
-  const [totalFloors, setTotalFloors] = useState('5');
+  const [bedrooms, setBedrooms] = useState('');
+  const [bathrooms, setBathrooms] = useState('');
+  const [floorNumber, setFloorNumber] = useState('');
+  const [totalFloors, setTotalFloors] = useState('');
   const [locality, setLocality] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [currentStatus, setCurrentStatus] = useState('DRAFT');
 
   useEffect(() => {
@@ -65,10 +66,10 @@ export default function EditPropertyScreen() {
         setPropertyType(p.propertyType || 'APARTMENT');
         setPrice(p.price ? String(p.price) : '');
         setArea(p.area ? String(p.area) : '');
-        setBedrooms(p.bedrooms ? String(p.bedrooms) : '3');
-        setBathrooms(p.bathrooms ? String(p.bathrooms) : '2');
-        setFloorNumber(p.floorNumber ? String(p.floorNumber) : '1');
-        setTotalFloors(p.totalFloors ? String(p.totalFloors) : '5');
+        setBedrooms(p.bedrooms ? String(p.bedrooms) : '');
+        setBathrooms(p.bathrooms ? String(p.bathrooms) : '');
+        setFloorNumber(p.floorNumber ? String(p.floorNumber) : '');
+        setTotalFloors(p.totalFloors ? String(p.totalFloors) : '');
         setLocality(p.locality || '');
         setAddress(p.address || '');
         setCity(p.city || '');
@@ -76,7 +77,7 @@ export default function EditPropertyScreen() {
         setCurrentStatus(p.status || 'DRAFT');
 
         if (p.images && p.images.length > 0) {
-          setImageUrl(p.images[0].url || '');
+          setImages(p.images.map((img: any) => img.url).filter(Boolean).slice(0, 4));
         }
       } catch (err: any) {
         Alert.alert('Error', err.message || 'Failed to load property details');
@@ -90,83 +91,166 @@ export default function EditPropertyScreen() {
   }, [id]);
 
   const handlePickImage = async () => {
+    if (images.length >= 4) {
+      showToast('Maximum 4 photos allowed. Remove a photo to add another.', 'info');
+      return;
+    }
+
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Storage Access Required',
-          'Please allow photo gallery / storage access in your device settings to select property photos.'
-        );
-        return;
+      try {
+        const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        }
+      } catch (permErr) {
+        console.warn('Media permission check:', permErr);
       }
 
+      const remainingSlots = 4 - images.length;
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: remainingSlots,
+        allowsEditing: false,
+        quality: 0.85,
+        base64: true,
       });
 
       if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
         return;
       }
 
-      const selectedAsset = pickerResult.assets[0];
       setUploadingImage(true);
+      const selectedAssets = pickerResult.assets.slice(0, remainingSlots);
+      const newlyUploadedUrls: string[] = [];
 
-      const uploadedUrl = await mobileUploadImage(selectedAsset.uri);
-      setImageUrl(uploadedUrl);
-      Alert.alert('Upload Complete', 'Property photo uploaded from device successfully!');
+      for (let i = 0; i < selectedAssets.length; i++) {
+        const asset = selectedAssets[i];
+        const uploadedUrl = await mobileUploadImage(
+          asset.uri,
+          asset.fileName || undefined,
+          asset.mimeType || undefined,
+          asset.base64 || undefined
+        );
+        if (uploadedUrl) {
+          newlyUploadedUrls.push(uploadedUrl);
+        }
+      }
+
+      if (newlyUploadedUrls.length > 0) {
+        setImages((prev) => [...prev, ...newlyUploadedUrls].slice(0, 4));
+        showToast(
+          `${newlyUploadedUrls.length} photo${newlyUploadedUrls.length > 1 ? 's' : ''} uploaded successfully!`,
+          'success'
+        );
+      }
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message || 'Could not upload photo from device.');
+      showToast(err.message || 'Could not upload photo from device.', 'error');
     } finally {
       setUploadingImage(false);
     }
   };
 
+  const handleRemoveImage = (indexToRemove: number) => {
+    setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleSetCoverPhoto = (indexToCover: number) => {
+    if (indexToCover === 0) return;
+    setImages((prev) => {
+      const copy = [...prev];
+      const [selected] = copy.splice(indexToCover, 1);
+      copy.unshift(selected);
+      return copy;
+    });
+    showToast('Cover photo updated!', 'success');
+  };
+
   const handleSave = async () => {
-    if (!title || !description || !locality || !price || !area) {
-      Alert.alert('Validation Error', 'Please complete all required fields.');
+    if (!listingType) {
+      showToast('Please select property purpose (Sell or Rent).', 'error');
+      return;
+    }
+    if (!category) {
+      showToast('Please select property category.', 'error');
+      return;
+    }
+    if (!title.trim() || title.trim().length < 5) {
+      showToast('Please enter a property title (at least 5 characters).', 'error');
+      return;
+    }
+    if (!description.trim() || description.trim().length < 10) {
+      showToast('Please enter a property description (at least 10 characters).', 'error');
+      return;
+    }
+    if (!price.trim() || isNaN(Number(price)) || Number(price) <= 0) {
+      showToast('Please enter a valid property price.', 'error');
+      return;
+    }
+    if (!area.trim() || isNaN(Number(area)) || Number(area) <= 0) {
+      showToast('Please enter a valid built-up area (Sq. Ft.).', 'error');
+      return;
+    }
+    if (category !== 'COMMERCIAL') {
+      if (!bedrooms.trim() || isNaN(Number(bedrooms)) || Number(bedrooms) < 0) {
+        showToast('Please enter number of bedrooms (BHK).', 'error');
+        return;
+      }
+      if (!bathrooms.trim() || isNaN(Number(bathrooms)) || Number(bathrooms) < 0) {
+        showToast('Please enter number of bathrooms.', 'error');
+        return;
+      }
+    }
+    if (!locality.trim()) {
+      showToast('Please enter locality / area name.', 'error');
+      return;
+    }
+    if (!city.trim()) {
+      showToast('Please enter city name.', 'error');
+      return;
+    }
+    if (images.length === 0) {
+      showToast('Please upload at least 1 property photo (maximum 4).', 'error');
+      return;
+    }
+    if (images.length > 4) {
+      showToast('Maximum 4 photos allowed.', 'error');
       return;
     }
 
     try {
       setSaving(true);
       const payload: any = {
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         listingType,
         category,
-        propertyType,
+        propertyType: propertyType.trim() || 'APARTMENT',
         price: Number(price),
         area: Number(area),
         areaUnit: 'SQ_FT',
-        bedrooms: bedrooms ? Number(bedrooms) : undefined,
-        bathrooms: bathrooms ? Number(bathrooms) : undefined,
-        floorNumber: floorNumber ? Number(floorNumber) : undefined,
-        totalFloors: totalFloors ? Number(totalFloors) : undefined,
-        address,
-        locality,
-        city,
-        pincode,
+        bedrooms: bedrooms.trim() ? Number(bedrooms) : undefined,
+        bathrooms: bathrooms.trim() ? Number(bathrooms) : undefined,
+        floorNumber: floorNumber.trim() ? Number(floorNumber) : undefined,
+        totalFloors: totalFloors.trim() ? Number(totalFloors) : undefined,
+        address: address.trim(),
+        locality: locality.trim(),
+        city: city.trim(),
+        pincode: pincode.trim(),
+        images: images.map((url, idx) => ({ url: url.trim(), sortOrder: idx })),
       };
-
-      if (imageUrl && imageUrl.trim() !== '') {
-        payload.images = [{ url: imageUrl.trim(), sortOrder: 0 }];
-      }
 
       await mobileApi(`/properties/${id}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
 
-      Alert.alert(
-        'Property Updated!',
-        'Your listing changes have been saved and submitted for Super Admin review.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      showToast('Property updated successfully!', 'success');
+      setTimeout(() => {
+        router.back();
+      }, 1000);
     } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Could not update property.');
+      showToast(err.message || 'Could not update property.', 'error');
     } finally {
       setSaving(false);
     }
@@ -236,7 +320,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Spacious 3 BHK Apartment with Park View"
+          placeholder="e.g. Spacious 3 BHK Apartment with Park View & Balcony"
+          placeholderTextColor="#94a3b8"
           style={styles.input}
         />
 
@@ -244,10 +329,11 @@ export default function EditPropertyScreen() {
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder="Describe your property..."
+          placeholder="Mention proximity to metro, schools, furnishings, parking, and key features..."
+          placeholderTextColor="#94a3b8"
           multiline
           numberOfLines={4}
-          style={[styles.input, { height: 90 }]}
+          style={[styles.input, { height: 90, textAlignVertical: 'top' }]}
         />
 
         {/* Pricing & Area */}
@@ -256,7 +342,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={price}
           onChangeText={setPrice}
-          placeholder="e.g. 7500000"
+          placeholder={listingType === 'RENT' ? "e.g. 25000 (Monthly Rent in ₹)" : "e.g. 7500000 (Total Selling Price in ₹)"}
+          placeholderTextColor="#94a3b8"
           keyboardType="numeric"
           style={styles.input}
         />
@@ -268,7 +355,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={area}
           onChangeText={setArea}
-          placeholder="e.g. 1450"
+          placeholder="e.g. 1250 (in Sq. Ft.)"
+          placeholderTextColor="#94a3b8"
           keyboardType="numeric"
           style={styles.input}
         />
@@ -280,6 +368,8 @@ export default function EditPropertyScreen() {
             <TextInput
               value={bedrooms}
               onChangeText={setBedrooms}
+              placeholder="e.g. 1, 2, 3, 4"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               style={styles.input}
             />
@@ -289,6 +379,8 @@ export default function EditPropertyScreen() {
             <TextInput
               value={bathrooms}
               onChangeText={setBathrooms}
+              placeholder="e.g. 1, 2, 3"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               style={styles.input}
             />
@@ -301,7 +393,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={locality}
           onChangeText={setLocality}
-          placeholder="e.g. Fraser Road or Indirapuram"
+          placeholder="e.g. Bailey Road, Bandra West, Connaught Place"
+          placeholderTextColor="#94a3b8"
           style={styles.input}
         />
 
@@ -309,7 +402,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={city}
           onChangeText={setCity}
-          placeholder="e.g. Patna or Delhi"
+          placeholder="e.g. Patna, Mumbai, Delhi, Bengaluru"
+          placeholderTextColor="#94a3b8"
           style={styles.input}
         />
 
@@ -317,7 +411,8 @@ export default function EditPropertyScreen() {
         <TextInput
           value={address}
           onChangeText={setAddress}
-          placeholder="e.g. Flat 302, Green Valley Apartments"
+          placeholder="e.g. Flat 302, Tower B, Green Valley Apartments"
+          placeholderTextColor="#94a3b8"
           style={styles.input}
         />
 
@@ -325,50 +420,96 @@ export default function EditPropertyScreen() {
         <TextInput
           value={pincode}
           onChangeText={setPincode}
-          placeholder="800001"
+          placeholder="e.g. 800001 or 400050"
+          placeholderTextColor="#94a3b8"
           keyboardType="numeric"
+          maxLength={6}
           style={styles.input}
         />
 
         {/* Photos & Device Upload */}
-        <Text style={styles.sectionHeader}>Property Photo</Text>
-        <Text style={styles.label}>Upload from Device Storage</Text>
-        <TouchableOpacity
-          style={styles.deviceUploadCard}
-          onPress={handlePickImage}
-          disabled={uploadingImage}
-        >
-          {uploadingImage ? (
-            <View style={styles.uploadingCenter}>
-              <ActivityIndicator size="small" color="#2563eb" />
-              <Text style={styles.uploadingText}>Uploading photo to server...</Text>
-            </View>
-          ) : imageUrl ? (
-            <View style={styles.uploadedPreviewWrap}>
-              <Image source={{ uri: resolveImageUrl(imageUrl) }} style={styles.uploadedPhotoPreview} />
-              <View style={styles.changePhotoOverlay}>
-                <UploadCloud size={16} color="#ffffff" />
-                <Text style={styles.changePhotoText}>Change Photo from Device</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.uploadPlaceholder}>
-              <View style={styles.uploadIconWrap}>
-                <UploadCloud size={24} color="#2563eb" />
-              </View>
-              <Text style={styles.uploadTitle}>Choose Photo from Device Files</Text>
-              <Text style={styles.uploadSubtitle}>Supports JPG, PNG from device gallery or files</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.photoHeaderRow}>
+          <Text style={styles.sectionHeaderNoMargin}>Property Photos * ({images.length}/4)</Text>
+          <Text style={styles.photoLimitHint}>Max 4 photos</Text>
+        </View>
+        <Text style={styles.subLabel}>
+          Upload up to 4 photos. The 1st photo serves as the main cover image.
+        </Text>
 
-        <Text style={[styles.label, { marginTop: 14 }]}>Or Direct Photo URL</Text>
-        <TextInput
-          value={imageUrl}
-          onChangeText={setImageUrl}
-          placeholder="https://..."
-          style={styles.input}
-        />
+        {/* Uploaded Photos Grid */}
+        {images.length > 0 && (
+          <View style={styles.photoGrid}>
+            {images.map((imgUrl, idx) => (
+              <View key={idx} style={styles.photoGridCard}>
+                <Image
+                  source={{ uri: resolveImageUrl(imgUrl) }}
+                  style={styles.photoGridImage}
+                  resizeMode="cover"
+                />
+                {idx === 0 ? (
+                  <View style={styles.coverBadge}>
+                    <CheckCircle size={11} color="#ffffff" />
+                    <Text style={styles.coverBadgeText}>Cover</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.setCoverBtn}
+                    onPress={() => handleSetCoverPhoto(idx)}
+                  >
+                    <Text style={styles.setCoverBtnText}>Make Cover</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.removePhotoBtn}
+                  onPress={() => handleRemoveImage(idx)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={14} color="#ffffff" />
+                </TouchableOpacity>
+                <View style={styles.photoIndexBadge}>
+                  <Text style={styles.photoIndexText}>{idx + 1}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Device Storage Upload Button */}
+        {images.length < 4 ? (
+          <TouchableOpacity
+            style={[styles.deviceUploadCard, images.length > 0 && styles.deviceUploadCardCompact]}
+            onPress={handlePickImage}
+            disabled={uploadingImage}
+          >
+            {uploadingImage ? (
+              <View style={styles.uploadingCenter}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.uploadingText}>Uploading photos to server...</Text>
+              </View>
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <View style={styles.uploadIconWrap}>
+                  <UploadCloud size={24} color="#2563eb" />
+                </View>
+                <Text style={styles.uploadTitle}>
+                  {images.length === 0
+                    ? 'Choose Photos from Device Storage (Max 4)'
+                    : `+ Add More Photos (${4 - images.length} remaining)`}
+                </Text>
+                <Text style={styles.uploadSubtitle}>
+                  Select original uncropped photos (JPG, PNG, WEBP)
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.maxPhotosNotice}>
+            <CheckCircle size={16} color="#16a34a" />
+            <Text style={styles.maxPhotosNoticeText}>
+              Maximum 4 photos added. To change any photo, delete one above first.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Sticky Save Footer */}
@@ -606,5 +747,125 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     marginTop: 2,
+  },
+  photoHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  sectionHeaderNoMargin: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  photoLimitHint: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  subLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 14,
+  },
+  photoGridCard: {
+    width: '48%',
+    height: 125,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
+    position: 'relative',
+  },
+  photoGridImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  coverBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  setCoverBtn: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  setCoverBtnText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  removePhotoBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(220, 38, 38, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoIndexBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoIndexText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  deviceUploadCardCompact: {
+    minHeight: 85,
+    paddingVertical: 12,
+  },
+  maxPhotosNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    padding: 12,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 6,
+  },
+  maxPhotosNoticeText: {
+    fontSize: 12,
+    color: '#166534',
+    flex: 1,
+    fontWeight: '600',
+    lineHeight: 16,
   },
 });
