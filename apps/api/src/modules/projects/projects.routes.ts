@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { prisma } from '../../config/database';
 import { sendSuccess, sendError } from '../../utils/response';
 import { authenticateToken, AuthenticatedRequest } from '../../middleware/auth';
-import { requireRoles } from '../../middleware/rbac';
+import { requireRoles, requireBuilder } from '../../middleware/rbac';
 import { validateBody } from '../../middleware/validate';
 import { CreateBuilderProjectSchema } from '@real-estate/validation';
 import { UserRole, ProjectStatus } from '@real-estate/types';
@@ -67,7 +67,7 @@ router.get('/:id', async (req, res) => {
 router.post(
   '/',
   authenticateToken,
-  requireRoles(UserRole.BUILDER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  requireBuilder,
   validateBody(CreateBuilderProjectSchema),
   async (req: AuthenticatedRequest, res: Response) => {
     try {

@@ -302,8 +302,8 @@ export class AdminService {
     const target = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new Error('User not found');
 
-    if (target.role === UserRole.SUPER_ADMIN && adminRole !== UserRole.SUPER_ADMIN) {
-      throw new Error('Forbidden: Only Super Admin can modify Super Admin accounts');
+    if (target.role === UserRole.SUPER_ADMIN) {
+      throw new Error('Forbidden: Platform Manager (Super Admin) account cannot be deactivated');
     }
 
     const nextStatus = target.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';

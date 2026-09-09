@@ -65,7 +65,7 @@ export class LeadsService {
 
   async getLeadsForUser(userId: string, role: UserRole) {
     let where: any = {};
-    if (role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN) {
+    if (role === UserRole.SUPER_ADMIN) {
       where = {};
     } else if (role === UserRole.AGENT) {
       where = { OR: [{ ownerId: userId }, { agentId: userId }] };
@@ -98,7 +98,6 @@ export class LeadsService {
     if (!lead) throw new Error('Lead not found');
 
     const isAuthorized =
-      role === UserRole.ADMIN ||
       role === UserRole.SUPER_ADMIN ||
       lead.ownerId === userId ||
       lead.agentId === userId;

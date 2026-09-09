@@ -67,12 +67,11 @@ export const UsersPage: React.FC = () => {
           className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none w-full md:w-auto"
         >
           <option value="">All Roles</option>
-          <option value="BUYER">BUYER</option>
-          <option value="OWNER">OWNER</option>
-          <option value="AGENT">AGENT</option>
-          <option value="BUILDER">BUILDER</option>
-          <option value="ADMIN">ADMIN</option>
-          <option value="SUPER_ADMIN">SUPER ADMIN</option>
+          <option value="BUYER">BUYER (Mobile App)</option>
+          <option value="OWNER">OWNER (Mobile App)</option>
+          <option value="AGENT">AGENT (Mobile App)</option>
+          <option value="BUILDER">BUILDER (Mobile App)</option>
+          <option value="SUPER_ADMIN">PLATFORM MANAGER (Super Admin)</option>
         </select>
       </div>
 

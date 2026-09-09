@@ -47,7 +47,7 @@ export class SiteVisitsService {
 
   async getVisitsForUser(userId: string, role: UserRole) {
     let where: any = {};
-    if (role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN) {
+    if (role === UserRole.SUPER_ADMIN) {
       where = {};
     } else if (role === UserRole.AGENT) {
       where = { OR: [{ ownerId: userId }, { agentId: userId }] };
@@ -75,7 +75,6 @@ export class SiteVisitsService {
     if (!visit) throw new Error('Site visit not found');
 
     const isAuthorized =
-      role === UserRole.ADMIN ||
       role === UserRole.SUPER_ADMIN ||
       visit.ownerId === userId ||
       visit.agentId === userId ||

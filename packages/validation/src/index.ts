@@ -22,7 +22,7 @@ export const RegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
   phone: z.string().regex(/^[0-9+ -]{10,15}$/, 'Invalid phone number format'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.nativeEnum(UserRole).default(UserRole.BUYER),
+  role: z.enum([UserRole.BUYER, UserRole.OWNER, UserRole.AGENT, UserRole.BUILDER]).default(UserRole.BUYER),
   avatarUrl: z.string().url().optional(),
 });
 

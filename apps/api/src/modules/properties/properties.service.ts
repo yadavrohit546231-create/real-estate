@@ -109,8 +109,7 @@ export class PropertiesService {
     const sanitizedProperties = properties.map((prop) => {
       const isOwnerOrAdmin =
         requestingUser &&
-        (requestingUser.role === UserRole.ADMIN ||
-          requestingUser.role === UserRole.SUPER_ADMIN ||
+        (requestingUser.role === UserRole.SUPER_ADMIN ||
           requestingUser.userId === prop.ownerId);
 
       return {
@@ -166,8 +165,7 @@ export class PropertiesService {
 
     const isAuthorized =
       requestingUser &&
-      (requestingUser.role === UserRole.ADMIN ||
-        requestingUser.role === UserRole.SUPER_ADMIN ||
+      (requestingUser.role === UserRole.SUPER_ADMIN ||
         requestingUser.userId === property.ownerId ||
         requestingUser.userId === property.agentId);
 
@@ -244,7 +242,7 @@ export class PropertiesService {
     const existing = await prisma.property.findUnique({ where: { id: propertyId } });
     if (!existing) throw new Error('Property not found');
 
-    const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
+    const isAdmin = userRole === UserRole.SUPER_ADMIN;
     if (!isAdmin && existing.ownerId !== userId) {
       throw new Error('Forbidden: You are not authorized to edit this property');
     }
@@ -297,7 +295,7 @@ export class PropertiesService {
     const property = await prisma.property.findUnique({ where: { id: propertyId } });
     if (!property) throw new Error('Property not found');
 
-    const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
+    const isAdmin = userRole === UserRole.SUPER_ADMIN;
     if (!isAdmin && property.ownerId !== userId) {
       throw new Error('Unauthorized');
     }

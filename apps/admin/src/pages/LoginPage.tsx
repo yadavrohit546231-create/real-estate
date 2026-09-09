@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { apiFetch } from '../lib/api';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('admin@realestate.com');
+  const [email, setEmail] = useState('superadmin@realestate.com');
   const [password, setPassword] = useState('Password123!');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,10 @@ export const LoginPage: React.FC = () => {
         body: JSON.stringify({ email, password }),
       });
 
-      if (res.data?.user?.role !== 'ADMIN' && res.data?.user?.role !== 'SUPER_ADMIN') {
-        throw new Error('Access denied: You must be an Administrator to access this portal.');
+      if (res.data?.user?.role !== 'SUPER_ADMIN') {
+        throw new Error(
+          'Access Restricted: The web portal is reserved exclusively for the Platform Manager (Super Admin). Buyers, Owners, Agents, and Builders must use the mobile application.'
+        );
       }
 
       setAuth(res.data.user, res.data.tokens.accessToken);
@@ -49,12 +51,12 @@ export const LoginPage: React.FC = () => {
           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-extrabold text-white">Administration Portal</h1>
-          <p className="text-sm text-slate-400 mt-1">Real Estate Platform Management</p>
+          <h1 className="text-2xl font-extrabold text-white">Platform Manager Portal</h1>
+          <p className="text-sm text-slate-400 mt-1">Super Admin Console & Platform Operations</p>
         </div>
 
         {error && (
-          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
+          <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs leading-relaxed">
             {error}
           </div>
         )}
@@ -62,7 +64,7 @@ export const LoginPage: React.FC = () => {
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Admin Email
+              Platform Manager Email
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -72,7 +74,7 @@ export const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-900/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@realestate.com"
+                placeholder="superadmin@realestate.com"
               />
             </div>
           </div>
@@ -103,34 +105,25 @@ export const LoginPage: React.FC = () => {
               <span>Authenticating...</span>
             ) : (
               <>
-                <span>Sign In to Dashboard</span>
+                <span>Sign In as Platform Manager</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
-        {/* Quick Dev Credentials */}
-        <div className="mt-8 pt-6 border-t border-slate-700/60">
-          <p className="text-xs font-medium text-slate-400 mb-2.5 text-center">
-            Quick Dev Test Logins:
+        {/* Quick Dev Credentials & Architecture Info */}
+        <div className="mt-8 pt-6 border-t border-slate-700/60 text-center">
+          <button
+            type="button"
+            onClick={() => fillCredentials('superadmin@realestate.com')}
+            className="w-full py-2 px-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-blue-300 text-xs font-medium transition-colors border border-slate-600/50"
+          >
+            Fill Platform Manager Credentials (superadmin@realestate.com)
+          </button>
+          <p className="text-[11px] text-slate-500 mt-3 leading-tight">
+            📱 All other users (Buyers, Owners, Agents, Builders) manage their accounts via the Mobile App.
           </p>
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={() => fillCredentials('admin@realestate.com')}
-              className="flex-1 py-1.5 px-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors border border-slate-600/50"
-            >
-              Platform Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => fillCredentials('superadmin@realestate.com')}
-              className="flex-1 py-1.5 px-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors border border-slate-600/50"
-            >
-              Super Admin
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { requireAdmin } from '../../middleware/rbac';
 
 const router = Router();
 
-// All admin routes require authentication and ADMIN / SUPER_ADMIN role
+// All platform manager routes require authentication and SUPER_ADMIN (Platform Manager) role
 router.use(authenticateToken, requireAdmin);
 
 router.get('/dashboard', adminController.getDashboard);

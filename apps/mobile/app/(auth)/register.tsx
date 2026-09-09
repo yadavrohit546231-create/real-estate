@@ -54,6 +54,7 @@ export default function RegisterScreen() {
           { id: UserRole.BUYER, label: 'Buyer / Tenant' },
           { id: UserRole.OWNER, label: 'Owner' },
           { id: UserRole.AGENT, label: 'Agent' },
+          { id: UserRole.BUILDER, label: 'Builder' },
         ].map((r) => (
           <TouchableOpacity
             key={r.id}

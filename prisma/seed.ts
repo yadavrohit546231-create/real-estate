@@ -128,7 +128,7 @@ async function main() {
   // 4. Seed Users: Super Admin, Admin, Buyers, Owners, Agents, Builders
   const superAdmin = await prisma.user.create({
     data: {
-      name: 'Super Admin',
+      name: 'Platform Manager',
       email: 'superadmin@realestate.com',
       phone: '+91 9999900001',
       passwordHash,
@@ -137,16 +137,8 @@ async function main() {
     },
   });
 
-  const admin = await prisma.user.create({
-    data: {
-      name: 'Platform Admin',
-      email: 'admin@realestate.com',
-      phone: '+91 9999900002',
-      passwordHash,
-      role: UserRole.ADMIN,
-      status: UserStatus.ACTIVE,
-    },
-  });
+  // Note: Web is exclusively for Platform Manager (Super Admin).
+  // All other users (Buyers, Owners, Agents, Builders) access via Mobile.
 
   // 5 Buyers
   const buyers = [];

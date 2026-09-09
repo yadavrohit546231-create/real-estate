@@ -4,16 +4,18 @@
 
 The Real Estate Marketplace is designed as an enterprise-grade monorepo containing:
 - **Backend Core**: Node.js + Express + TypeScript + Prisma ORM + MySQL.
-- **Admin Application**: React 18 + Vite + TypeScript + Tailwind CSS + Recharts + Lucide Icons.
-- **Mobile Application**: React Native + Expo SDK 52 + Expo Router + TypeScript + Zustand + React Query.
+- **Platform Manager Portal (Web)**: React 18 + Vite + TypeScript + Tailwind CSS — Exclusively for the **Platform Manager (Super Admin)** to govern listings, verify agents/builders, review dispute reports, and monitor metrics.
+- **Mobile Application (iOS / Android / Web)**: React Native + Expo + Expo Router — The universal client for **all market users** (**Buyers/Tenants**, **Property Owners**, **Real Estate Agents**, and **Builders/Developers**).
 - **Shared Libraries**: `@real-estate/types`, `@real-estate/validation`, `@real-estate/shared`.
 
 ```
                   +-----------------------------------+
                   |        Client Interfaces          |
                   |                                   |
-                  |   [Mobile App]    [Admin Portal]  |
-                  |  (Expo / React)   (Vite / React)  |
+                  |   [Mobile App]    [Platform Web]  |
+                  |   All Users       Platform Manager|
+                  | (Buyers/Owners/   (Super Admin    |
+                  | Agents/Builders)   Console)       |
                   +---------+---------------+---------+
                             |               |
                        REST | Bearer JWT    | REST Bearer JWT
@@ -59,7 +61,7 @@ The Real Estate Marketplace is designed as an enterprise-grade monorepo containi
 ### Business Rules Enforced in Code:
 1. **Rule 1**: Only approved properties can have status `LIVE`.
 2. **Rule 2**: Rejections require a mandatory reason (`PropertyApproval.reason` and `Property.rejectionReason`).
-3. **Rule 3**: Only `ADMIN` or `SUPER_ADMIN` can approve or reject property listings.
+3. **Rule 3**: Only the Platform Manager (`SUPER_ADMIN`) can approve or reject property listings.
 4. **Rule 4**: Owner can edit rejected property and resubmit, resetting status to `PENDING_REVIEW`.
 5. **Rule 5**: Unauthenticated users can browse and filter properties freely.
 6. **Rule 6**: Actions like creating leads, saving favorites, scheduling visits, or posting properties require authentication.

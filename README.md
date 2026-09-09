@@ -2,7 +2,9 @@
 
 A full-stack, enterprise-grade real estate marketplace platform inspired by **99acres** and **Housing.com**, engineered with a modern TypeScript monorepo architecture.
 
-Supports **BUY**, **RENT**, **SELL**, **COMMERCIAL**, and **PG** categories across multi-tier user roles: **Buyer/Tenant**, **Property Owner**, **Real Estate Agent**, **Builder/Developer**, **Platform Admin**, and **Super Admin**.
+### Client Access Model
+- 🖥️ **Web Platform (`apps/admin`)**: Exclusively reserved for the **Platform Manager (Super Admin)** for marketplace governance, listing moderation, builder/agent verification, dispute resolution, and operational analytics.
+- 📱 **Mobile Application (`apps/mobile`)**: The universal client application for **all marketplace users** (**Buyers & Tenants**, **Property Owners**, **Real Estate Agents**, and **Builders & Developers**).
 
 ---
 
@@ -12,8 +14,8 @@ Supports **BUY**, **RENT**, **SELL**, **COMMERCIAL**, and **PG** categories acro
 real-estate-platform/
 ├── apps/
 │   ├── api/          # Node.js + Express + TypeScript + Prisma + MySQL API
-│   ├── admin/        # React + Vite + TypeScript + Tailwind CSS Admin Control Panel
-│   └── mobile/       # React Native + Expo SDK 57 + Expo Router Mobile App
+│   ├── admin/        # React + Vite + TypeScript + Tailwind CSS Platform Manager Portal
+│   └── mobile/       # React Native + Expo SDK 57 + Expo Router Mobile App (All Users)
 │
 ├── packages/
 │   ├── types/        # Shared TypeScript interfaces, enums, & API envelopes
@@ -139,11 +141,11 @@ As per requirement 66:
 
 ## 🛡️ Key Business Rules & Workflows
 
-1. **Moderation Queue**: A newly posted property enters `PENDING_REVIEW` status and is **never** publicly visible until approved by an Admin.
-2. **Rejection Safeguards**: When an Admin rejects a listing, a detailed reason (`>= 5 chars`) is required, recorded in the database, and pushed to the owner.
+1. **Moderation Queue**: A newly posted property enters `PENDING_REVIEW` status and is **never** publicly visible until approved by the Platform Manager.
+2. **Rejection Safeguards**: When the Platform Manager rejects a listing, a detailed reason (`>= 5 chars`) is required, recorded in the database, and pushed to the owner.
 3. **Transaction Safety**: All approval and verification state changes occur inside atomic Prisma database transactions (`prisma.$transaction`).
 4. **Data Privacy**: Owner personal phone numbers are dynamically masked for unauthenticated viewers (`+91 987****210`).
-5. **RBAC Protection**: Buyers cannot approve listings; normal admins cannot delete Super Admins.
+5. **RBAC Protection**: Standard users cannot access platform management routes; only the Platform Manager (`SUPER_ADMIN`) can moderate listings and govern users.
 6. **Server-Side Payment Verification**: Featured property upgrades and payments are cryptographically verified server-side with fallback mock testing support.
 
 ---

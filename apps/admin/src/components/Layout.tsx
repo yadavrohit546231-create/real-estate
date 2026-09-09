@@ -47,7 +47,7 @@ export const Layout: React.FC = () => {
           </div>
           <div>
             <h1 className="font-bold text-white text-base leading-tight">EstatePlatform</h1>
-            <p className="text-xs text-blue-400 font-medium">Administration Suite</p>
+            <p className="text-xs text-blue-400 font-medium">Platform Manager</p>
           </div>
         </div>
 
@@ -86,8 +86,8 @@ export const Layout: React.FC = () => {
                 {user?.name?.[0] || 'A'}
               </div>
               <div className="truncate">
-                <p className="text-xs font-medium text-white truncate">{user?.name || 'Administrator'}</p>
-                <p className="text-[11px] text-slate-400 truncate">{user?.role || 'ADMIN'}</p>
+                <p className="text-xs font-medium text-white truncate">{user?.name || 'Platform Manager'}</p>
+                <p className="text-[11px] text-blue-400 font-semibold truncate">Platform Manager</p>
               </div>
             </div>
             <button
@@ -109,7 +109,7 @@ export const Layout: React.FC = () => {
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">
               E
             </div>
-            <span className="font-bold text-sm">EstatePlatform Admin</span>
+            <span className="font-bold text-sm">Platform Manager</span>
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

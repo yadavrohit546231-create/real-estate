@@ -23,7 +23,8 @@ export function requireRoles(...allowedRoles: UserRole[]) {
   };
 }
 
-export const requireAdmin = requireRoles(UserRole.ADMIN, UserRole.SUPER_ADMIN);
+export const requireAdmin = requireRoles(UserRole.SUPER_ADMIN);
+export const requirePlatformManager = requireRoles(UserRole.SUPER_ADMIN);
 export const requireSuperAdmin = requireRoles(UserRole.SUPER_ADMIN);
-export const requireOwnerOrAgent = requireRoles(UserRole.OWNER, UserRole.AGENT, UserRole.ADMIN, UserRole.SUPER_ADMIN);
-export const requireBuilder = requireRoles(UserRole.BUILDER, UserRole.ADMIN, UserRole.SUPER_ADMIN);
+export const requireOwnerOrAgent = requireRoles(UserRole.OWNER, UserRole.AGENT, UserRole.SUPER_ADMIN);
+export const requireBuilder = requireRoles(UserRole.BUILDER, UserRole.SUPER_ADMIN);

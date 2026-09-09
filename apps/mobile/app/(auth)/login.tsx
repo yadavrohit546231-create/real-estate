@@ -101,6 +101,9 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => fillTestUser('agent1@realty.com')} style={styles.devBtn}>
             <Text style={styles.devBtnText}>Agent 1</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => fillTestUser('builder1@estate.com')} style={styles.devBtn}>
+            <Text style={styles.devBtnText}>Builder 1</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
