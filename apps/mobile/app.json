@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "EstatePlatform",
+    "slug": "real-estate-marketplace",
+    "version": "1.0.0",
+    "sdkVersion": "57.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "estateplatform",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.estateplatform.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.estateplatform.app"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

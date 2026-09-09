@@ -1,0 +1,38 @@
+{
+  "name": "real-estate-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready Real Estate Marketplace Platform (99acres/Housing.com style)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:api",
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:admin\"",
+    "dev:api": "npm run dev --workspace=@real-estate/api",
+    "dev:admin": "npm run dev --workspace=@real-estate/admin",
+    "dev:mobile": "npm run start --workspace=@real-estate/mobile",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspace=@real-estate/api",
+    "db:generate": "node scripts/prisma-cli.js generate",
+    "db:migrate": "node scripts/prisma-cli.js migrate dev",
+    "db:push": "node scripts/prisma-cli.js db push",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:studio": "node scripts/prisma-cli.js studio",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.4.7",
+    "prisma": "^6.4.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@types/react": "~19.2.4",
+    "react-native": "^0.86.3",
+    "react-native-screens": "~4.26.0"
+  }
+}
