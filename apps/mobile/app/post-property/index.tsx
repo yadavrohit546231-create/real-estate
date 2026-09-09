@@ -23,10 +23,9 @@ export default function PostPropertyScreen() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
-  // Lister role state (Owner vs Agent)
-  const [listedAsRole, setListedAsRole] = useState<'OWNER' | 'AGENT'>(
-    postPropertyDraft.listedAsRole || (user?.role === 'AGENT' ? 'AGENT' : 'OWNER')
-  );
+  // Listing role is managed automatically based on user account type
+  const isAgent = user?.role === 'AGENT';
+  const roleDisplayLabel = isAgent ? 'Real Estate Agent' : user?.role === 'BUILDER' ? 'Builder' : 'Property Owner';
 
   // Form State initialized from draft if existing
   const [listingType, setListingType] = useState(postPropertyDraft.listingType || 'SALE');
@@ -82,7 +81,6 @@ export default function PostPropertyScreen() {
   // Auto-save draft on step change
   const saveCurrentDraft = () => {
     updateDraft({
-      listedAsRole,
       listingType,
       category,
       propertyType,
@@ -147,7 +145,7 @@ export default function PostPropertyScreen() {
         pincode,
         images: [{ url: imageUrl, sortOrder: 0 }],
         isDraft: false, // will become PENDING_REVIEW automatically
-        listedAsRole,
+        listedAsRole: isAgent ? 'AGENT' : 'OWNER',
       };
 
       const res = await mobileApi('/properties', {
@@ -155,7 +153,7 @@ export default function PostPropertyScreen() {
         body: JSON.stringify(payload),
       });
 
-      // Synchronize updated user role if converted from BUYER to OWNER/AGENT
+      // Synchronize updated user role if converted from BUYER to OWNER
       if (res.data?.updatedUser?.role) {
         setUser({ ...user, role: res.data.updatedUser.role });
       }
@@ -163,7 +161,7 @@ export default function PostPropertyScreen() {
       clearDraft();
       Alert.alert(
         'Listing Submitted for Review!',
-        `Your property has been submitted for Super Admin review. Your account profile is now set to ${res.data?.updatedUser?.role || listedAsRole}.\n\nOnce approved by Super Admin, it will be published LIVE with your ${listedAsRole === 'AGENT' ? 'Agent' : 'Owner'} contact details.`,
+        `Your property has been submitted for Super Admin review. Once approved by Super Admin, it will be published LIVE with your ${roleDisplayLabel} contact details.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
       );
     } catch (err: any) {
@@ -192,41 +190,19 @@ export default function PostPropertyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-        {/* STEP 1: Lister Role & Basic Intent */}
+        {/* STEP 1: Basic Intent */}
         {step === 1 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>I am listing this property as:</Text>
-            <View style={styles.optionsRow}>
-              <TouchableOpacity
-                style={[styles.bigCard, listedAsRole === 'OWNER' && styles.bigCardActive]}
-                onPress={() => setListedAsRole('OWNER')}
-              >
-                <Text style={[styles.bigCardText, listedAsRole === 'OWNER' && styles.bigCardTextActive]}>
-                  Property Owner
-                </Text>
-                <Text style={styles.roleSubtext}>Direct Owner</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.bigCard, listedAsRole === 'AGENT' && styles.bigCardActive]}
-                onPress={() => setListedAsRole('AGENT')}
-              >
-                <Text style={[styles.bigCardText, listedAsRole === 'AGENT' && styles.bigCardTextActive]}>
-                  Real Estate Agent
-                </Text>
-                <Text style={styles.roleSubtext}>Broker / Consultant</Text>
-              </TouchableOpacity>
-            </View>
-
             {user.role === 'BUYER' && (
               <View style={styles.buyerUpgradeNotice}>
                 <ShieldAlert size={16} color="#b45309" />
                 <Text style={styles.buyerUpgradeNoticeText}>
-                  Your account is currently a <Text style={{ fontWeight: '700' }}>Buyer</Text>. It will automatically switch to <Text style={{ fontWeight: '700' }}>{listedAsRole === 'AGENT' ? 'Agent' : 'Owner'}</Text> upon posting.
+                  Your account is currently a <Text style={{ fontWeight: '700' }}>Buyer</Text>. Listing a property will automatically upgrade your profile to <Text style={{ fontWeight: '700' }}>Property Owner</Text>.
                 </Text>
               </View>
             )}
 
-            <Text style={[styles.question, { marginTop: 24 }]}>What do you want to do?</Text>
+            <Text style={styles.question}>What do you want to do?</Text>
             <View style={styles.optionsRow}>
               {[
                 { id: 'SALE', label: 'Sell Property' },
@@ -426,7 +402,7 @@ export default function PostPropertyScreen() {
               <View
                 style={[
                   styles.summaryRoleTag,
-                  listedAsRole === 'AGENT'
+                  isAgent
                     ? { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }
                     : { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
                 ]}
@@ -434,10 +410,10 @@ export default function PostPropertyScreen() {
                 <Text
                   style={[
                     styles.summaryRoleTagText,
-                    listedAsRole === 'AGENT' ? { color: '#2563eb' } : { color: '#059669' },
+                    isAgent ? { color: '#2563eb' } : { color: '#059669' },
                   ]}
                 >
-                  {listedAsRole === 'AGENT' ? 'LISTED BY AGENT' : 'LISTED BY OWNER'}
+                  {isAgent ? 'LISTED BY AGENT' : user?.role === 'BUILDER' ? 'LISTED BY BUILDER' : 'LISTED BY OWNER'}
                 </Text>
               </View>
               <Text style={styles.summaryTitle}>{title || 'Untitled Property'}</Text>
