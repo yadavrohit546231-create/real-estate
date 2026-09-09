@@ -181,11 +181,11 @@ export class PropertiesService {
       throw new Error('This property listing is currently not active');
     }
 
-    // Mask phone number for general public viewing
+    // Provide complete phone number on details page for all viewers (including logged-out guests)
     const sanitizedOwner = property.owner
       ? {
           ...property.owner,
-          phone: isAuthorized ? property.owner.phone : maskPhoneNumber(property.owner.phone),
+          phone: property.owner.phone,
           email: isAuthorized ? property.owner.email : undefined,
         }
       : null;
@@ -194,7 +194,7 @@ export class PropertiesService {
     const listerRole = isListerAgent ? 'AGENT' : 'OWNER';
     const listerName = property.agent?.name || property.owner?.name || 'Property Owner';
     const rawPhone = property.agent?.phone || property.owner?.phone || '';
-    const listerPhone = requestingUser ? rawPhone : (rawPhone ? maskPhoneNumber(rawPhone) : '');
+    const listerPhone = rawPhone;
 
     return {
       ...property,
@@ -202,7 +202,7 @@ export class PropertiesService {
         role: listerRole,
         name: listerName,
         phone: listerPhone,
-        isPhoneMasked: !requestingUser,
+        isPhoneMasked: false,
         agencyName: property.agent?.agentProfile?.agencyName || property.owner?.agentProfile?.agencyName || null,
       },
       owner: sanitizedOwner,

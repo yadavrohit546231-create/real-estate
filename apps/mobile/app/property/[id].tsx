@@ -333,27 +333,25 @@ export default function PropertyDetailScreen() {
               )}
             </View>
 
-            {user ? (
-              <View style={styles.contactVerifiedBox}>
-                <Text style={styles.ownerContactLabel}>Verified Phone Contact:</Text>
-                <Text style={styles.ownerContactValue}>
-                  {property.listedBy?.phone || property.owner?.phone || 'Available on request'}
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.loginToViewCard}
-                onPress={() => router.push('/(auth)/login')}
-              >
-                <Text style={styles.loginToViewTitle}>🔒 Contact details hidden</Text>
-                <Text style={styles.loginToViewSub}>
-                  Sign in to view direct phone number and connect with the {property.listedBy?.role === 'AGENT' || property.owner?.role === 'AGENT' ? 'agent' : 'owner'}.
-                </Text>
-                <View style={styles.loginToViewBtn}>
-                  <Text style={styles.loginToViewBtnText}>Sign In to View Contact</Text>
+            {/* Lister Contact Phone: Visible to all users (including logged-out guests) */}
+            <View style={styles.contactVerifiedBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.ownerContactLabel}>Contact Phone Number:</Text>
+                <View style={styles.verifiedPill}>
+                  <Text style={styles.verifiedPillText}>Verified</Text>
                 </View>
-              </TouchableOpacity>
-            )}
+              </View>
+              <Text style={styles.ownerContactValue}>
+                {property.listedBy?.phone || property.owner?.phone || 'Available'}
+              </Text>
+              {!user && (
+                <View style={styles.guestInquiryNotice}>
+                  <Text style={styles.guestInquiryNoticeText}>
+                    💡 Login is required to initiate direct Call, WhatsApp, or submit an Enquiry.
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -609,26 +607,30 @@ const styles = StyleSheet.create({
   },
   ownerContactLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
   ownerContactValue: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginTop: 2 },
-  loginToViewCard: {
-    marginTop: 10,
-    backgroundColor: '#ffffff',
-    padding: 14,
-    borderRadius: 12,
+  verifiedPill: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderStyle: 'dashed',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  loginToViewTitle: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
-  loginToViewSub: { fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 17 },
-  loginToViewBtn: {
-    backgroundColor: '#2563eb',
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+  verifiedPillText: {
+    color: '#059669',
+    fontSize: 10,
+    fontWeight: '700',
   },
-  loginToViewBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
+  guestInquiryNotice: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  guestInquiryNoticeText: {
+    fontSize: 11,
+    color: '#b45309',
+    fontWeight: '600',
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
