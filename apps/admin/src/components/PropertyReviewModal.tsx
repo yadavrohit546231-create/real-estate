@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { X, CheckCircle, AlertTriangle, MapPin, Building, User, IndianRupee, Layers } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle, AlertTriangle, MapPin, Building, User, IndianRupee, Layers, Sparkles } from 'lucide-react';
 import { formatPriceINR } from '@real-estate/shared';
 
 interface PropertyReviewModalProps {
   property: any;
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (id: string) => Promise<void>;
+  onApprove: (id: string, makeFeatured?: boolean) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
 }
 
@@ -22,6 +22,17 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [makeFeatured, setMakeFeatured] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (property) {
+      setMakeFeatured(Boolean(property.featuredRequested || property.isFeatured));
+      setRejectMode(false);
+      setReason('');
+      setSelectedPhotoIndex(0);
+      setError(null);
+    }
+  }, [property]);
 
   if (!isOpen || !property) return null;
 
@@ -33,7 +44,7 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
     try {
       setIsSubmitting(true);
       setError(null);
-      await onApprove(property.id);
+      await onApprove(property.id, makeFeatured);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to approve property');
@@ -84,6 +95,26 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700">
               {error}
+            </div>
+          )}
+
+          {/* User Featured Request Highlight Banner */}
+          {property.featuredRequested && (
+            <div className="p-4 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-200/80 rounded-xl flex items-start space-x-3.5 shadow-sm">
+              <div className="p-2 bg-amber-200/70 rounded-lg text-amber-800 mt-0.5">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-sm font-bold text-amber-950">User Requested "Featured Listing" Spotlight</h4>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-300 text-amber-900 uppercase tracking-wider">
+                    REQUESTED
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                  The property owner/agent requested this listing to be featured on the Mobile App Home Screen. You can approve it as Featured using the checkbox below.
+                </p>
+              </div>
             </div>
           )}
 
@@ -166,6 +197,29 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
             </p>
           </div>
 
+          {/* Amenities & Features */}
+          {property.amenities && property.amenities.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center">
+                <CheckCircle className="w-4 h-4 mr-1 text-blue-600" /> Amenities & Features ({property.amenities.length})
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {property.amenities.map((item: any, idx: number) => {
+                  const name = item.amenity?.name || item.name || 'Amenity';
+                  return (
+                    <span
+                      key={item.id || idx}
+                      className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                      {name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Rejection Form Input */}
           {rejectMode && (
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
@@ -209,7 +263,20 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
             >
               <AlertTriangle className="w-4 h-4 mr-1.5" /> Reject Listing
             </button>
-            <div className="flex space-x-3">
+            <div className="flex items-center space-x-3">
+              <label className="flex items-center space-x-2 cursor-pointer bg-amber-50/70 hover:bg-amber-100/70 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors">
+                <input
+                  type="checkbox"
+                  checked={makeFeatured}
+                  onChange={(e) => setMakeFeatured(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-amber-900 flex items-center">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 mr-1" />
+                  Approve as Featured
+                </span>
+              </label>
+
               <button
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
@@ -221,7 +288,7 @@ export const PropertyReviewModal: React.FC<PropertyReviewModalProps> = ({
                 disabled={isSubmitting}
                 className="px-6 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all flex items-center"
               >
-                <CheckCircle className="w-4 h-4 mr-1.5" /> {isSubmitting ? 'Approving...' : 'Approve & Publish LIVE'}
+                <CheckCircle className="w-4 h-4 mr-1.5" /> {isSubmitting ? 'Approving...' : makeFeatured ? 'Approve & Feature LIVE' : 'Approve & Publish LIVE'}
               </button>
             </div>
           </div>

@@ -8,16 +8,23 @@ export class FavoritesService {
       include: {
         property: {
           include: {
-            images: { take: 1 },
-            owner: { select: { id: true, name: true } },
+            images: { orderBy: { sortOrder: 'asc' } },
+            owner: { select: { id: true, name: true, role: true, phone: true } },
+            agent: { select: { id: true, name: true, role: true, phone: true } },
           },
         },
       },
     });
-    return favorites.map((f) => f.property);
+    return favorites.map((f) => f.property).filter(Boolean);
   }
 
   async addFavorite(userId: string, propertyId: string) {
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true },
+    });
+    if (!property) throw new Error('Property not found');
+
     const existing = await prisma.favorite.findUnique({
       where: { userId_propertyId: { userId, propertyId } },
     });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,13 +26,50 @@ import {
   X,
   CheckCircle,
   Trash2,
+  Sparkles,
+  Plus,
+  MapPin,
+  Layers,
+  Tag,
 } from 'lucide-react-native';
 import { useStore } from '../../store/useStore';
 import { mobileApi, mobileUploadImage, resolveImageUrl } from '../../services/api';
 import { showToast } from '../../services/toast';
 import { formatPriceINR } from '@real-estate/shared';
+import { AmenityIcon } from '../../components/AmenityIcon';
 
 const MAX_PHOTOS = 4;
+
+const STAGES = [
+  { id: 1, name: 'Intent', title: 'Basic Property Intent', subtitle: 'Choose whether you are selling or renting out, and pick the category.', icon: Layers },
+  { id: 2, name: 'Location', title: 'Location & Address', subtitle: 'Pinpoint the exact location, city, full address, and pincode.', icon: MapPin },
+  { id: 3, name: 'Specs', title: 'Configuration & Specs', subtitle: 'Define property type, area, bedrooms, bathrooms, and floor details.', icon: Building2 },
+  { id: 4, name: 'Amenities', title: 'Amenities & Features', subtitle: 'Add the available amenities and lifestyle highlights of your property.', icon: Sparkles },
+  { id: 5, name: 'Pricing', title: 'Pricing & Terms', subtitle: 'Set your expected selling price or monthly rental amount.', icon: Tag },
+  { id: 6, name: 'Media', title: 'Photos & Description', subtitle: 'Upload up to 4 high quality photos and write an engaging description.', icon: UploadCloud },
+  { id: 7, name: 'Review', title: 'Review & Submit', subtitle: 'Review all details and request Featured Spotlight before submitting for review.', icon: CheckCircle },
+];
+
+const POPULAR_AMENITY_SUGGESTIONS = [
+  'Lift / Elevator',
+  'Car Parking',
+  'Power Backup',
+  '24x7 Security',
+  'Gymnasium',
+  'Swimming Pool',
+  'Clubhouse',
+  'Park / Garden',
+  'CCTV Surveillance',
+  'Modular Kitchen',
+  'Water Storage (24x7)',
+  'Piped Gas',
+  'Fire Fighting System',
+  'Gated Society',
+  'Balcony',
+  'Vastu Compliant',
+  'Intercom',
+  'Children Play Area',
+];
 
 export default function PostPropertyScreen() {
   const router = useRouter();
@@ -41,6 +78,17 @@ export default function PostPropertyScreen() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const scrollViewRef = React.useRef<ScrollView>(null);
+
+  const clearError = (field: string) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const copy = { ...prev };
+      delete copy[field];
+      return copy;
+    });
+  };
 
   // Listing role is managed automatically based on user account type
   const isAgent = user?.role === 'AGENT';
@@ -62,6 +110,13 @@ export default function PostPropertyScreen() {
   const [price, setPrice] = useState(postPropertyDraft.price ? String(postPropertyDraft.price) : '');
   const [title, setTitle] = useState(postPropertyDraft.title || '');
   const [description, setDescription] = useState(postPropertyDraft.description || '');
+  const [amenities, setAmenities] = useState<string[]>(() => {
+    if (Array.isArray(postPropertyDraft.amenities) && postPropertyDraft.amenities.length > 0) {
+      return postPropertyDraft.amenities;
+    }
+    return [];
+  });
+  const [amenityInput, setAmenityInput] = useState('');
   const [images, setImages] = useState<string[]>(() => {
     if (Array.isArray(postPropertyDraft.images) && postPropertyDraft.images.length > 0) {
       return postPropertyDraft.images;
@@ -71,36 +126,51 @@ export default function PostPropertyScreen() {
     }
     return [];
   });
+  const [featuredRequested, setFeaturedRequested] = useState<boolean>(
+    Boolean(postPropertyDraft.featuredRequested) || false
+  );
 
-  // MANDATORY LOGIN GATE
+  const handleAddAmenity = (nameToAdd?: string) => {
+    const raw = (nameToAdd !== undefined ? nameToAdd : amenityInput).trim();
+    if (!raw) return;
+
+    const items = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    setAmenities((prev) => {
+      const copy = [...prev];
+      for (const item of items) {
+        if (!copy.some((existing) => existing.toLowerCase() === item.toLowerCase())) {
+          copy.push(item);
+        }
+      }
+      return copy;
+    });
+
+    if (nameToAdd === undefined) {
+      setAmenityInput('');
+    }
+  };
+
+  const handleRemoveAmenity = (indexToRemove: number) => {
+    setAmenities((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleClearAllAmenities = () => {
+    setAmenities([]);
+  };
+
+  // DIRECT LOGIN REDIRECT
+  useEffect(() => {
+    if (!user) {
+      router.replace('/(auth)/login');
+    }
+  }, [user]);
+
   if (!user) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.unauthContainer}>
-          <View style={styles.unauthIconWrap}>
-            <Lock size={36} color="#2563eb" />
-          </View>
-          <Text style={styles.unauthTitle}>Login Required to Post Property</Text>
-          <Text style={styles.unauthSub}>
-            To protect verified buyers, prevent duplicate spam, and ensure authentic transactions, you must be signed in to list a property.
-          </Text>
-
-          <TouchableOpacity
-            style={styles.unauthLoginBtn}
-            onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.unauthLoginBtnText}>Sign In / Register Now</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.unauthBackBtn}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.unauthBackBtnText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
+    return null;
   }
 
   // Auto-save draft on step change
@@ -123,106 +193,91 @@ export default function PostPropertyScreen() {
       description,
       images,
       imageUrl: images[0] || '',
+      amenities,
+      featuredRequested,
     });
   };
 
-  // Step-by-Step Validation: Prevent user from moving forward without completing required fields
+  // Step-by-Step Validation: Sets error messages and highlights fields in RED without toasts
   const validateStep = (currentStep: number): boolean => {
+    const newErrors: Record<string, string> = {};
+
     if (currentStep === 1) {
       if (!listingType) {
-        showToast('Please select what you want to do (Sell or Rent).', 'error');
-        return false;
+        newErrors.listingType = 'Please choose whether to Sell or Rent.';
       }
       if (!category) {
-        showToast('Please select a property category.', 'error');
-        return false;
+        newErrors.category = 'Please select a property category.';
       }
-      return true;
     }
 
     if (currentStep === 2) {
       if (!city || !city.trim()) {
-        showToast('Please enter the City name.', 'error');
-        return false;
+        newErrors.city = 'City name is required.';
       }
       if (!locality || !locality.trim()) {
-        showToast('Please enter the Locality or Area name.', 'error');
-        return false;
+        newErrors.locality = 'Locality or Area name is required.';
       }
       if (!address || !address.trim()) {
-        showToast('Please enter the full Address or Project name.', 'error');
-        return false;
+        newErrors.address = 'Full address or project name is required.';
       }
       if (!pincode || !pincode.trim()) {
-        showToast('Please enter the Pincode.', 'error');
-        return false;
+        newErrors.pincode = 'Pincode is required.';
+      } else if (pincode.trim().length < 5) {
+        newErrors.pincode = 'Please enter a valid 5 or 6 digit pincode.';
       }
-      if (pincode.trim().length < 5) {
-        showToast('Please enter a valid 6-digit Pincode.', 'error');
-        return false;
-      }
-      return true;
     }
 
     if (currentStep === 3) {
       if (!propertyType || !propertyType.trim()) {
-        showToast('Please enter or select the Property Type.', 'error');
-        return false;
+        newErrors.propertyType = 'Property type is required.';
       }
       if (!area || !area.trim() || isNaN(Number(area)) || Number(area) <= 0) {
-        showToast('Please enter a valid Built-up Area (in Sq. Ft.).', 'error');
-        return false;
+        newErrors.area = 'Please enter a valid built-up area (in Sq. Ft.).';
       }
       if (category !== 'COMMERCIAL') {
         if (!bedrooms || !bedrooms.trim() || isNaN(Number(bedrooms)) || Number(bedrooms) < 0) {
-          showToast('Please enter the number of Bedrooms (BHK).', 'error');
-          return false;
+          newErrors.bedrooms = 'Number of bedrooms (BHK) is required.';
         }
         if (!bathrooms || !bathrooms.trim() || isNaN(Number(bathrooms)) || Number(bathrooms) < 0) {
-          showToast('Please enter the number of Bathrooms.', 'error');
-          return false;
+          newErrors.bathrooms = 'Number of bathrooms is required.';
         }
       }
       if (floorNumber.trim() && totalFloors.trim()) {
         if (Number(floorNumber) > Number(totalFloors)) {
-          showToast('Floor number cannot exceed Total Floors.', 'error');
-          return false;
+          newErrors.floorNumber = 'Floor number cannot exceed Total Floors.';
         }
       }
-      return true;
-    }
-
-    if (currentStep === 4) {
-      if (!price || !price.trim() || isNaN(Number(price)) || Number(price) <= 0) {
-        showToast(
-          listingType === 'RENT'
-            ? 'Please enter a valid Monthly Rent (₹).'
-            : 'Please enter a valid Selling Price (₹).',
-          'error'
-        );
-        return false;
-      }
-      return true;
     }
 
     if (currentStep === 5) {
+      if (!price || !price.trim() || isNaN(Number(price)) || Number(price) <= 0) {
+        newErrors.price =
+          listingType === 'RENT'
+            ? 'Please enter a valid monthly rent amount (₹).'
+            : 'Please enter a valid selling price (₹).';
+      }
+    }
+
+    if (currentStep === 6) {
       if (!title || !title.trim() || title.trim().length < 5) {
-        showToast('Please enter a Property Title (at least 5 characters).', 'error');
-        return false;
+        newErrors.title = 'Title must be at least 5 characters long.';
       }
       if (!description || !description.trim() || description.trim().length < 10) {
-        showToast('Please enter a Property Description (at least 10 characters).', 'error');
-        return false;
+        newErrors.description = 'Description must be at least 10 characters long.';
       }
       if (images.length === 0) {
-        showToast('Please upload at least 1 property photo (maximum 4).', 'error');
-        return false;
+        newErrors.images = 'Please upload at least 1 photo of the property.';
+      } else if (images.length > MAX_PHOTOS) {
+        newErrors.images = `Maximum ${MAX_PHOTOS} photos allowed.`;
       }
-      if (images.length > MAX_PHOTOS) {
-        showToast(`Maximum ${MAX_PHOTOS} photos allowed.`, 'error');
-        return false;
-      }
-      return true;
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return false;
     }
 
     return true;
@@ -233,15 +288,19 @@ export default function PostPropertyScreen() {
       return;
     }
     saveCurrentDraft();
-    if (step < 6) {
+    if (step < 7) {
       setStep(step + 1);
+      setErrors({});
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     }
   };
 
   const handleBack = () => {
     saveCurrentDraft();
+    setErrors({});
     if (step > 1) {
       setStep(step - 1);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } else {
       router.back();
     }
@@ -300,6 +359,7 @@ export default function PostPropertyScreen() {
           `${newlyUploadedUrls.length} photo${newlyUploadedUrls.length > 1 ? 's' : ''} uploaded successfully!`,
           'success'
         );
+        clearError('images');
       }
     } catch (err: any) {
       showToast(err.message || 'Could not upload photo from device.', 'error');
@@ -325,7 +385,7 @@ export default function PostPropertyScreen() {
 
   const handleSubmit = async () => {
     // Sequentially validate every step to make sure no required field is missed
-    for (let s = 1; s <= 5; s++) {
+    for (let s = 1; s <= 6; s++) {
       if (!validateStep(s)) {
         setStep(s);
         return;
@@ -334,26 +394,51 @@ export default function PostPropertyScreen() {
 
     try {
       setSubmitting(true);
+      const parsedPrice = Number(price);
+      const parsedArea = Number(area);
+      const parsedBedrooms = bedrooms.trim() && !isNaN(Number(bedrooms)) ? Number(bedrooms) : undefined;
+      const parsedBathrooms = bathrooms.trim() && !isNaN(Number(bathrooms)) ? Number(bathrooms) : undefined;
+      const parsedFloor = floorNumber.trim() && !isNaN(Number(floorNumber)) ? Number(floorNumber) : undefined;
+      const parsedTotalFloors = totalFloors.trim() && !isNaN(Number(totalFloors)) ? Number(totalFloors) : undefined;
+
+      // Safe state derivation or fallback
+      const derivedState = (() => {
+        const c = (city || '').toLowerCase();
+        if (['mumbai', 'pune', 'nagpur', 'thane', 'nashik'].some((s) => c.includes(s))) return 'Maharashtra';
+        if (['delhi', 'noida', 'gurugram', 'gurgaon', 'ghaziabad', 'faridabad'].some((s) => c.includes(s))) return 'Delhi NCR';
+        if (['bengaluru', 'bangalore', 'mysore'].some((s) => c.includes(s))) return 'Karnataka';
+        if (['kolkata', 'howrah'].some((s) => c.includes(s))) return 'West Bengal';
+        if (['chennai', 'coimbatore'].some((s) => c.includes(s))) return 'Tamil Nadu';
+        if (['hyderabad'].some((s) => c.includes(s))) return 'Telangana';
+        if (['jaipur', 'udaipur', 'jodhpur'].some((s) => c.includes(s))) return 'Rajasthan';
+        if (['lucknow', 'kanpur', 'varanasi', 'agra'].some((s) => c.includes(s))) return 'Uttar Pradesh';
+        if (['ahmedabad', 'surat', 'vadodara'].some((s) => c.includes(s))) return 'Gujarat';
+        return 'Bihar';
+      })();
+
       const payload = {
         title: title.trim(),
         description: description.trim(),
         listingType,
         category,
         propertyType: propertyType.trim(),
-        price: Number(price),
-        area: Number(area),
+        price: parsedPrice,
+        rentAmount: listingType === 'RENT' ? parsedPrice : undefined,
+        area: parsedArea,
         areaUnit: 'SQ_FT',
-        bedrooms: bedrooms.trim() ? Number(bedrooms) : undefined,
-        bathrooms: bathrooms.trim() ? Number(bathrooms) : undefined,
-        floorNumber: floorNumber.trim() ? Number(floorNumber) : undefined,
-        totalFloors: totalFloors.trim() ? Number(totalFloors) : undefined,
+        bedrooms: parsedBedrooms,
+        bathrooms: parsedBathrooms,
+        floorNumber: parsedFloor,
+        totalFloors: parsedTotalFloors,
         address: address.trim(),
         locality: locality.trim(),
         city: city.trim(),
-        state: 'State',
+        state: derivedState,
         country: 'India',
         pincode: pincode.trim(),
-        images: images.map((url, idx) => ({ url: url.trim(), sortOrder: idx })),
+        amenities,
+        images: images.filter(Boolean).map((url, idx) => ({ url: url.trim(), sortOrder: idx })),
+        featuredRequested,
         isDraft: false, // will become PENDING_REVIEW automatically
         listedAsRole: isAgent ? 'AGENT' : 'OWNER',
       };
@@ -374,7 +459,45 @@ export default function PostPropertyScreen() {
         router.replace('/(tabs)');
       }, 1000);
     } catch (err: any) {
-      showToast(err.message || 'Please check your inputs.', 'error');
+      // Map any backend validation errors directly to form input fields with red borders!
+      const backendErrors: string[] = Array.isArray(err.errors) ? err.errors : [];
+      const newErrors: Record<string, string> = {};
+      let targetStep = 1;
+
+      if (backendErrors.length > 0) {
+        backendErrors.forEach((e: string) => {
+          const [fieldPath, ...msgParts] = e.split(': ');
+          const msg = msgParts.join(': ') || e;
+          const cleanField = fieldPath.split('.')[0];
+
+          if (['title', 'description', 'images'].includes(cleanField)) {
+            newErrors[cleanField] = msg;
+            targetStep = 6;
+          } else if (['price', 'rentAmount'].includes(cleanField)) {
+            newErrors.price = msg;
+            targetStep = 5;
+          } else if (['propertyType', 'bedrooms', 'bathrooms', 'area', 'floorNumber', 'totalFloors'].includes(cleanField)) {
+            newErrors[cleanField] = msg;
+            targetStep = 3;
+          } else if (['city', 'locality', 'address', 'pincode', 'state'].includes(cleanField)) {
+            newErrors[cleanField] = msg;
+            targetStep = 2;
+          } else if (['listingType', 'category'].includes(cleanField)) {
+            newErrors[cleanField] = msg;
+            targetStep = 1;
+          }
+        });
+      }
+
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        setStep(targetStep);
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        // No error toast - red border on inputs instead!
+      } else {
+        // Fallback for non-field errors (e.g. auth or network)
+        showToast(err.message || 'Submission failed. Please check your inputs.', 'error');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -382,23 +505,107 @@ export default function PostPropertyScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Progress Header */}
+      {/* Top App Bar */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <ArrowLeft size={20} color="#0f172a" />
         </TouchableOpacity>
-        <View style={{ flex: 1, marginHorizontal: 12 }}>
-          <Text style={styles.stepTitle}>Step {step} of 6</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${(step / 6) * 100}%` }]} />
-          </View>
+        <View style={{ flex: 1, marginHorizontal: 8 }}>
+          <Text style={styles.topBarTitle}>Post Property</Text>
+          <Text style={styles.topBarSubtitle}>Step {step} of 7 • {STAGES[step - 1]?.name}</Text>
         </View>
-        <TouchableOpacity onPress={saveCurrentDraft} style={styles.saveBtn}>
+        <TouchableOpacity onPress={saveCurrentDraft} style={styles.saveBtn} activeOpacity={0.7}>
           <Save size={18} color="#2563eb" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
+      {/* Interactive Horizontal Stages Stepper */}
+      <View style={styles.stepperContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.stepperScroll}
+        >
+          {STAGES.map((s) => {
+            const isCurrent = step === s.id;
+            const isCompleted = step > s.id;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => {
+                  if (isCompleted) {
+                    setStep(s.id);
+                    setErrors({});
+                  }
+                }}
+                disabled={!isCompleted && !isCurrent}
+                activeOpacity={0.75}
+                style={[
+                  styles.stepPill,
+                  isCurrent && styles.stepPillActive,
+                  isCompleted && styles.stepPillCompleted,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.stepPillBadge,
+                    isCurrent && styles.stepPillBadgeActive,
+                    isCompleted && styles.stepPillBadgeCompleted,
+                  ]}
+                >
+                  {isCompleted ? (
+                    <Check size={10} color="#ffffff" strokeWidth={3} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepPillBadgeText,
+                        isCurrent && styles.stepPillBadgeTextActive,
+                      ]}
+                    >
+                      {s.id}
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.stepPillName,
+                    isCurrent && styles.stepPillNameActive,
+                    isCompleted && styles.stepPillNameCompleted,
+                  ]}
+                >
+                  {s.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Stage Context Banner Card */}
+      <View style={styles.stageContextCard}>
+        <View style={styles.stageContextTop}>
+          <View style={styles.stageContextBadgeWrap}>
+            <Text style={styles.stageContextBadge}>STAGE {step} OF 7</Text>
+          </View>
+          <Text style={styles.stageProgressPercent}>{Math.round((step / 7) * 100)}% Completed</Text>
+        </View>
+        <Text style={styles.stageContextTitle}>{STAGES[step - 1]?.title}</Text>
+        <Text style={styles.stageContextSubtitle}>{STAGES[step - 1]?.subtitle}</Text>
+        <View style={styles.stageContextProgressTrack}>
+          <View
+            style={[
+              styles.stageContextProgressFill,
+              { width: `${(step / 7) * 100}%` },
+            ]}
+          />
+        </View>
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+      >
         {/* STEP 1: Basic Intent */}
         {step === 1 && (
           <View style={styles.stepContainer}>
@@ -413,7 +620,7 @@ export default function PostPropertyScreen() {
 
             <Text style={styles.question}>What do you want to do? *</Text>
             <Text style={styles.fieldHint}>Choose whether you are selling or renting out this property</Text>
-            <View style={styles.optionsRow}>
+            <View style={[styles.optionsRow, errors.listingType && styles.optionGroupError]}>
               {[
                 { id: 'SALE', label: 'Sell Property' },
                 { id: 'RENT', label: 'Rent Out Property' },
@@ -421,7 +628,10 @@ export default function PostPropertyScreen() {
                 <TouchableOpacity
                   key={item.id}
                   style={[styles.bigCard, listingType === item.id && styles.bigCardActive]}
-                  onPress={() => setListingType(item.id)}
+                  onPress={() => {
+                    setListingType(item.id);
+                    clearError('listingType');
+                  }}
                 >
                   <Text style={[styles.bigCardText, listingType === item.id && styles.bigCardTextActive]}>
                     {item.label}
@@ -429,10 +639,13 @@ export default function PostPropertyScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {errors.listingType && (
+              <Text style={styles.fieldErrorText}>⚠️ {errors.listingType}</Text>
+            )}
 
             <Text style={[styles.question, { marginTop: 24 }]}>Select Category *</Text>
             <Text style={styles.fieldHint}>Choose the main classification for this property</Text>
-            <View style={styles.optionsRow}>
+            <View style={[styles.optionsRow, errors.category && styles.optionGroupError]}>
               {[
                 { id: 'RESIDENTIAL', label: 'Residential' },
                 { id: 'COMMERCIAL', label: 'Commercial' },
@@ -441,7 +654,10 @@ export default function PostPropertyScreen() {
                 <TouchableOpacity
                   key={item.id}
                   style={[styles.chip, category === item.id && styles.chipActive]}
-                  onPress={() => setCategory(item.id)}
+                  onPress={() => {
+                    setCategory(item.id);
+                    clearError('category');
+                  }}
                 >
                   <Text style={[styles.chipText, category === item.id && styles.chipTextActive]}>
                     {item.label}
@@ -449,6 +665,9 @@ export default function PostPropertyScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {errors.category && (
+              <Text style={styles.fieldErrorText}>⚠️ {errors.category}</Text>
+            )}
           </View>
         )}
 
@@ -462,27 +681,39 @@ export default function PostPropertyScreen() {
               placeholder="e.g. Patna, Mumbai, Delhi, Bengaluru"
               placeholderTextColor="#94a3b8"
               value={city}
-              onChangeText={setCity}
-              style={styles.input}
+              onChangeText={(val) => {
+                setCity(val);
+                clearError('city');
+              }}
+              style={[styles.input, errors.city && styles.inputError]}
             />
+            {errors.city && <Text style={styles.fieldErrorText}>⚠️ {errors.city}</Text>}
 
             <Text style={styles.inputLabel}>Locality / Area Name *</Text>
             <TextInput
               placeholder="e.g. Bailey Road, Bandra West, Connaught Place"
               placeholderTextColor="#94a3b8"
               value={locality}
-              onChangeText={setLocality}
-              style={styles.input}
+              onChangeText={(val) => {
+                setLocality(val);
+                clearError('locality');
+              }}
+              style={[styles.input, errors.locality && styles.inputError]}
             />
+            {errors.locality && <Text style={styles.fieldErrorText}>⚠️ {errors.locality}</Text>}
 
             <Text style={styles.inputLabel}>Full Address / Project Name *</Text>
             <TextInput
               placeholder="e.g. Flat 402, Tower B, Sunshine Residency, Main Road"
               placeholderTextColor="#94a3b8"
               value={address}
-              onChangeText={setAddress}
-              style={styles.input}
+              onChangeText={(val) => {
+                setAddress(val);
+                clearError('address');
+              }}
+              style={[styles.input, errors.address && styles.inputError]}
             />
+            {errors.address && <Text style={styles.fieldErrorText}>⚠️ {errors.address}</Text>}
 
             <Text style={styles.inputLabel}>Pincode *</Text>
             <TextInput
@@ -491,9 +722,13 @@ export default function PostPropertyScreen() {
               keyboardType="numeric"
               maxLength={6}
               value={pincode}
-              onChangeText={setPincode}
-              style={styles.input}
+              onChangeText={(val) => {
+                setPincode(val);
+                clearError('pincode');
+              }}
+              style={[styles.input, errors.pincode && styles.inputError]}
             />
+            {errors.pincode && <Text style={styles.fieldErrorText}>⚠️ {errors.pincode}</Text>}
           </View>
         )}
 
@@ -507,16 +742,24 @@ export default function PostPropertyScreen() {
               placeholder="e.g. Apartment, Villa, Independent House, Plot, Office"
               placeholderTextColor="#94a3b8"
               value={propertyType}
-              onChangeText={setPropertyType}
-              style={styles.input}
+              onChangeText={(val) => {
+                setPropertyType(val);
+                clearError('propertyType');
+              }}
+              style={[styles.input, errors.propertyType && styles.inputError]}
             />
+            {errors.propertyType && <Text style={styles.fieldErrorText}>⚠️ {errors.propertyType}</Text>}
+
             {/* Quick-select chips for convenience */}
             <View style={styles.chipWrapRow}>
               {['Apartment', 'Independent House', 'Villa', 'Builder Floor', 'Plot', 'Commercial Office'].map((t) => (
                 <TouchableOpacity
                   key={t}
                   style={[styles.smallChip, propertyType.toLowerCase() === t.toLowerCase() && styles.chipActive]}
-                  onPress={() => setPropertyType(t)}
+                  onPress={() => {
+                    setPropertyType(t);
+                    clearError('propertyType');
+                  }}
                 >
                   <Text style={[styles.smallChipText, propertyType.toLowerCase() === t.toLowerCase() && styles.chipTextActive]}>
                     {t}
@@ -534,15 +777,22 @@ export default function PostPropertyScreen() {
                     placeholderTextColor="#94a3b8"
                     keyboardType="numeric"
                     value={bedrooms}
-                    onChangeText={setBedrooms}
-                    style={styles.input}
+                    onChangeText={(val) => {
+                      setBedrooms(val);
+                      clearError('bedrooms');
+                    }}
+                    style={[styles.input, errors.bedrooms && styles.inputError]}
                   />
+                  {errors.bedrooms && <Text style={styles.fieldErrorText}>⚠️ {errors.bedrooms}</Text>}
                   <View style={styles.chipWrapRow}>
                     {['1', '2', '3', '4'].map((b) => (
                       <TouchableOpacity
                         key={b}
                         style={[styles.smallChip, bedrooms === b && styles.chipActive]}
-                        onPress={() => setBedrooms(b)}
+                        onPress={() => {
+                          setBedrooms(b);
+                          clearError('bedrooms');
+                        }}
                       >
                         <Text style={[styles.smallChipText, bedrooms === b && styles.chipTextActive]}>{b} BHK</Text>
                       </TouchableOpacity>
@@ -556,15 +806,22 @@ export default function PostPropertyScreen() {
                     placeholderTextColor="#94a3b8"
                     keyboardType="numeric"
                     value={bathrooms}
-                    onChangeText={setBathrooms}
-                    style={styles.input}
+                    onChangeText={(val) => {
+                      setBathrooms(val);
+                      clearError('bathrooms');
+                    }}
+                    style={[styles.input, errors.bathrooms && styles.inputError]}
                   />
+                  {errors.bathrooms && <Text style={styles.fieldErrorText}>⚠️ {errors.bathrooms}</Text>}
                   <View style={styles.chipWrapRow}>
                     {['1', '2', '3'].map((b) => (
                       <TouchableOpacity
                         key={b}
                         style={[styles.smallChip, bathrooms === b && styles.chipActive]}
-                        onPress={() => setBathrooms(b)}
+                        onPress={() => {
+                          setBathrooms(b);
+                          clearError('bathrooms');
+                        }}
                       >
                         <Text style={[styles.smallChipText, bathrooms === b && styles.chipTextActive]}>{b} Bath</Text>
                       </TouchableOpacity>
@@ -580,9 +837,13 @@ export default function PostPropertyScreen() {
               placeholder="e.g. 1250 (in Sq. Ft.)"
               placeholderTextColor="#94a3b8"
               value={area}
-              onChangeText={setArea}
-              style={styles.input}
+              onChangeText={(val) => {
+                setArea(val);
+                clearError('area');
+              }}
+              style={[styles.input, errors.area && styles.inputError]}
             />
+            {errors.area && <Text style={styles.fieldErrorText}>⚠️ {errors.area}</Text>}
 
             <View style={styles.twoCols}>
               <View style={{ flex: 1 }}>
@@ -592,8 +853,11 @@ export default function PostPropertyScreen() {
                   placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
                   value={floorNumber}
-                  onChangeText={setFloorNumber}
-                  style={styles.input}
+                  onChangeText={(val) => {
+                    setFloorNumber(val);
+                    clearError('floorNumber');
+                  }}
+                  style={[styles.input, errors.floorNumber && styles.inputError]}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -603,16 +867,151 @@ export default function PostPropertyScreen() {
                   placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
                   value={totalFloors}
-                  onChangeText={setTotalFloors}
+                  onChangeText={(val) => {
+                    setTotalFloors(val);
+                    clearError('floorNumber');
+                  }}
                   style={styles.input}
                 />
+              </View>
+            </View>
+            {errors.floorNumber && <Text style={styles.fieldErrorText}>⚠️ {errors.floorNumber}</Text>}
+          </View>
+        )}
+
+        {/* STEP 4: Amenities & Features */}
+        {step === 4 && (
+          <View style={styles.stepContainer}>
+            <View style={styles.amenitiesHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.question}>Amenities & Features</Text>
+                <Text style={styles.fieldHint}>
+                  Add the amenities, facilities, and lifestyle features available at your property manually.
+                </Text>
+              </View>
+            </View>
+
+            {/* Manual Amenity Input Box */}
+            <Text style={styles.inputLabel}>Add Amenity or Feature</Text>
+            <View style={styles.amenityInputRow}>
+              <TextInput
+                style={styles.amenityInputField}
+                placeholder="e.g. Lift, 24/7 Security, Modular Kitchen"
+                placeholderTextColor="#94a3b8"
+                value={amenityInput}
+                onChangeText={setAmenityInput}
+                onSubmitEditing={() => handleAddAmenity()}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addAmenityBtn,
+                  !amenityInput.trim() && styles.addAmenityBtnDisabled,
+                ]}
+                onPress={() => handleAddAmenity()}
+                activeOpacity={0.7}
+              >
+                <Plus size={16} color="#ffffff" />
+                <Text style={styles.addAmenityBtnText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.amenityInputSubHint}>
+              💡 Tip: You can type multiple amenities separated by commas (e.g. Lift, Parking, CCTV) and tap Add.
+            </Text>
+
+            {/* Added Amenities Status Bar */}
+            <View style={styles.amenitiesStatusBar}>
+              <View style={styles.selectedCountPill}>
+                <Sparkles size={14} color="#2563eb" />
+                <Text style={styles.selectedCountPillText}>
+                  {amenities.length} Added
+                </Text>
+              </View>
+              {amenities.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleClearAllAmenities}
+                  style={styles.quickActionBtn}
+                >
+                  <Text style={[styles.quickActionBtnText, { color: '#dc2626' }]}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Added Amenities Badges */}
+            {amenities.length > 0 ? (
+              <View style={styles.addedAmenitiesWrap}>
+                {amenities.map((item, idx) => (
+                  <View key={idx} style={styles.addedAmenityBadge}>
+                    <AmenityIcon name={item} size={15} color="#2563eb" />
+                    <Text style={styles.addedAmenityText}>{item}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveAmenity(idx)}
+                      style={styles.removeAmenityBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <X size={14} color="#64748b" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyAmenitiesBox}>
+                <Text style={styles.emptyAmenitiesTitle}>No amenities added yet</Text>
+                <Text style={styles.emptyAmenitiesSub}>
+                  Type any feature in the input box above or tap quick suggestions below to add.
+                </Text>
+              </View>
+            )}
+
+            {/* Popular Quick Suggestions */}
+            <View style={styles.suggestionsContainer}>
+              <Text style={styles.suggestionsTitle}>Quick Suggestions (Tap to add):</Text>
+              <View style={styles.suggestionsWrap}>
+                {POPULAR_AMENITY_SUGGESTIONS.map((sug) => {
+                  const isAdded = amenities.some(
+                    (a) => a.toLowerCase() === sug.toLowerCase()
+                  );
+                  return (
+                    <TouchableOpacity
+                      key={sug}
+                      style={[
+                        styles.suggestionChip,
+                        isAdded && styles.suggestionChipAdded,
+                      ]}
+                      onPress={() => {
+                        if (isAdded) {
+                          setAmenities((prev) =>
+                            prev.filter((a) => a.toLowerCase() !== sug.toLowerCase())
+                          );
+                        } else {
+                          handleAddAmenity(sug);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {isAdded ? (
+                        <Check size={12} color="#16a34a" />
+                      ) : (
+                        <Plus size={12} color="#475569" />
+                      )}
+                      <Text
+                        style={[
+                          styles.suggestionChipText,
+                          isAdded && styles.suggestionChipTextAdded,
+                        ]}
+                      >
+                        {sug}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>
         )}
 
-        {/* STEP 4: Price */}
-        {step === 4 && (
+        {/* STEP 5: Price */}
+        {step === 5 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Set your expected price</Text>
             <Text style={styles.inputLabel}>
@@ -623,9 +1022,17 @@ export default function PostPropertyScreen() {
               placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               value={price}
-              onChangeText={setPrice}
-              style={[styles.input, { fontSize: 18, fontWeight: '700' }]}
+              onChangeText={(val) => {
+                setPrice(val);
+                clearError('price');
+              }}
+              style={[
+                styles.input,
+                { fontSize: 18, fontWeight: '700' },
+                errors.price && styles.inputError,
+              ]}
             />
+            {errors.price && <Text style={styles.fieldErrorText}>⚠️ {errors.price}</Text>}
             {price !== '' && !isNaN(Number(price)) && Number(price) > 0 && (
               <Text style={styles.priceHelper}>
                 Estimated: {formatPriceINR(Number(price))}
@@ -634,8 +1041,8 @@ export default function PostPropertyScreen() {
           </View>
         )}
 
-        {/* STEP 5: Photos & Narrative */}
-        {step === 5 && (
+        {/* STEP 6: Photos & Narrative */}
+        {step === 6 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Title & Description</Text>
 
@@ -644,9 +1051,13 @@ export default function PostPropertyScreen() {
               placeholder="e.g. Spacious 3 BHK Apartment with Park View & Balcony"
               placeholderTextColor="#94a3b8"
               value={title}
-              onChangeText={setTitle}
-              style={styles.input}
+              onChangeText={(val) => {
+                setTitle(val);
+                clearError('title');
+              }}
+              style={[styles.input, errors.title && styles.inputError]}
             />
+            {errors.title && <Text style={styles.fieldErrorText}>⚠️ {errors.title}</Text>}
 
             <Text style={styles.inputLabel}>Detailed Description *</Text>
             <TextInput
@@ -655,9 +1066,17 @@ export default function PostPropertyScreen() {
               multiline
               numberOfLines={4}
               value={description}
-              onChangeText={setDescription}
-              style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+              onChangeText={(val) => {
+                setDescription(val);
+                clearError('description');
+              }}
+              style={[
+                styles.input,
+                { height: 100, textAlignVertical: 'top' },
+                errors.description && styles.inputError,
+              ]}
             />
+            {errors.description && <Text style={styles.fieldErrorText}>⚠️ {errors.description}</Text>}
 
             <View style={styles.photoHeaderRow}>
               <Text style={styles.inputLabelNoMargin}>
@@ -668,6 +1087,7 @@ export default function PostPropertyScreen() {
             <Text style={styles.fieldHint}>
               Upload up to 4 photos from device storage. The 1st photo is your main cover thumbnail.
             </Text>
+            {errors.images && <Text style={styles.fieldErrorText}>⚠️ {errors.images}</Text>}
 
             {/* Uploaded Photos Grid */}
             {images.length > 0 && (
@@ -710,7 +1130,11 @@ export default function PostPropertyScreen() {
             {/* Device Storage Upload Button */}
             {images.length < MAX_PHOTOS ? (
               <TouchableOpacity
-                style={[styles.deviceUploadCard, images.length > 0 && styles.deviceUploadCardCompact]}
+                style={[
+                  styles.deviceUploadCard,
+                  images.length > 0 && styles.deviceUploadCardCompact,
+                  errors.images && styles.inputError,
+                ]}
                 onPress={handlePickImage}
                 disabled={uploadingImage}
               >
@@ -746,8 +1170,8 @@ export default function PostPropertyScreen() {
           </View>
         )}
 
-        {/* STEP 6: Preview & Submit */}
-        {step === 6 && (
+        {/* STEP 7: Preview & Submit */}
+        {step === 7 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Review & Submit for Review</Text>
             <View style={styles.summaryCard}>
@@ -774,7 +1198,7 @@ export default function PostPropertyScreen() {
                 {[locality, city].filter(Boolean).join(', ') || 'Location not specified'}
               </Text>
 
-              {/* Photos preview strip in Step 6 */}
+              {/* Photos preview strip in Step 7 */}
               {images.length > 0 && (
                 <View style={{ marginTop: 12, marginBottom: 8 }}>
                   <Text style={styles.summaryPhotosLabel}>Uploaded Photos ({images.length}):</Text>
@@ -803,6 +1227,70 @@ export default function PostPropertyScreen() {
                   .filter(Boolean)
                   .join(' • ')}
               </Text>
+
+              {/* Amenities in Step 7 Summary */}
+              <View style={styles.summaryAmenitiesSection}>
+                <Text style={styles.summaryAmenitiesHeader}>
+                  Amenities & Features ({amenities.length})
+                </Text>
+                {amenities.length > 0 ? (
+                  <View style={styles.summaryAmenitiesWrap}>
+                    {amenities.map((item, idx) => (
+                      <View key={idx} style={styles.summaryAmenityChip}>
+                        <CheckCircle size={12} color="#2563eb" />
+                        <Text style={styles.summaryAmenityChipText}>
+                          {item}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.summaryAmenityEmpty}>No amenities added</Text>
+                )}
+              </View>
+
+              {/* Featured Spotlight Request Option */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setFeaturedRequested(!featuredRequested)}
+                style={[
+                  styles.featuredRequestBox,
+                  featuredRequested && styles.featuredRequestBoxActive,
+                ]}
+              >
+                <View style={styles.featuredRequestLeft}>
+                  <View
+                    style={[
+                      styles.featuredIconWrap,
+                      featuredRequested && styles.featuredIconWrapActive,
+                    ]}
+                  >
+                    <Sparkles size={18} color={featuredRequested ? '#d97706' : '#64748b'} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Text style={styles.featuredRequestTitle}>
+                        Request "Featured" Spotlight
+                      </Text>
+                      <View style={styles.featuredFreeBadge}>
+                        <Text style={styles.featuredFreeBadgeText}>SPOTLIGHT</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featuredRequestSubtitle}>
+                      Ask Super Admin to feature your property on the Home Screen carousel for 10x higher buyer visibility.
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.checkboxBox,
+                    featuredRequested && styles.checkboxBoxActive,
+                  ]}
+                >
+                  {featuredRequested && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                </View>
+              </TouchableOpacity>
+
               <View style={styles.reviewAlert}>
                 <Text style={styles.reviewAlertText}>
                   🛡️ Admin Review Rule: Newly posted properties enter "PENDING_REVIEW" and become LIVE once verified by Super Admin.
@@ -815,7 +1303,7 @@ export default function PostPropertyScreen() {
 
       {/* Footer Navigation */}
       <View style={styles.footer}>
-        {step < 6 ? (
+        {step < 7 ? (
           <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
             <Text style={styles.nextBtnText}>Continue</Text>
             <ArrowRight size={18} color="#ffffff" />
@@ -1267,5 +1755,452 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 8,
     fontWeight: '700',
+  },
+  amenitiesHeaderRow: {
+    marginBottom: 4,
+  },
+  amenitiesStatusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  selectedCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectedCountPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  amenitiesQuickActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  quickActionBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  amenitiesLoading: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  amenitiesLoadingText: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  amenityInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  amenityInputField: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: '#0f172a',
+  },
+  addAmenityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  addAmenityBtnDisabled: {
+    backgroundColor: '#94a3b8',
+    opacity: 0.7,
+  },
+  addAmenityBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  amenityInputSubHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 16,
+    lineHeight: 16,
+  },
+  addedAmenitiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  addedAmenityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  addedAmenityText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  removeAmenityBtn: {
+    padding: 2,
+    marginLeft: 2,
+  },
+  emptyAmenitiesBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyAmenitiesTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  emptyAmenitiesSub: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    padding: 14,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  suggestionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  suggestionChipAdded: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+  },
+  suggestionChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  suggestionChipTextAdded: {
+    color: '#16a34a',
+  },
+  summaryAmenitiesSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  summaryAmenitiesHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryAmenitiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  summaryAmenityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  summaryAmenityChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  summaryAmenityEmpty: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+  },
+  featuredRequestBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  featuredRequestBoxActive: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+  },
+  featuredRequestLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    marginRight: 10,
+  },
+  featuredIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  featuredIconWrapActive: {
+    backgroundColor: '#fef3c7',
+  },
+  featuredRequestTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  featuredFreeBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  featuredFreeBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#b45309',
+    letterSpacing: 0.5,
+  },
+  featuredRequestSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxActive: {
+    backgroundColor: '#d97706',
+    borderColor: '#d97706',
+  },
+  topBarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  topBarSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  stepperContainer: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingVertical: 10,
+  },
+  stepperScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+    alignItems: 'center',
+  },
+  stepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 24,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  stepPillActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stepPillCompleted: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+  },
+  stepPillBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  stepPillBadgeActive: {
+    backgroundColor: '#2563eb',
+  },
+  stepPillBadgeCompleted: {
+    backgroundColor: '#059669',
+  },
+  stepPillBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  stepPillBadgeTextActive: {
+    color: '#ffffff',
+  },
+  stepPillName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  stepPillNameActive: {
+    color: '#1d4ed8',
+    fontWeight: '700',
+  },
+  stepPillNameCompleted: {
+    color: '#047857',
+  },
+  stageContextCard: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  stageContextTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  stageContextBadgeWrap: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  stageContextBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1d4ed8',
+    letterSpacing: 0.8,
+  },
+  stageProgressPercent: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  stageContextTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  stageContextSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  stageContextProgressTrack: {
+    height: 4,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 2,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  stageContextProgressFill: {
+    height: '100%',
+    backgroundColor: '#2563eb',
+    borderRadius: 2,
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    borderWidth: 1.5,
+    backgroundColor: '#fef2f2',
+  },
+  fieldErrorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  optionGroupError: {
+    borderWidth: 1.5,
+    borderColor: '#ef4444',
+    borderRadius: 14,
+    padding: 6,
+    backgroundColor: '#fef2f2',
   },
 });

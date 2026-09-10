@@ -30,12 +30,25 @@ export class SiteVisitsService {
       },
     });
 
+    const visitor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, phone: true, email: true, role: true, status: true },
+    });
+
+    const visitorRoleLabel = visitor?.role === UserRole.AGENT
+      ? 'Real Estate Agent'
+      : visitor?.role === UserRole.BUILDER
+        ? 'Builder / Developer'
+        : visitor?.role === UserRole.OWNER
+          ? 'Property Owner'
+          : 'Buyer';
+
     // Notify owner
     await prisma.notification.create({
       data: {
         userId: property.ownerId,
-        title: 'New Site Visit Requested',
-        message: `A site visit was requested for "${property.title}" on ${data.visitDate} (${data.timeSlot}).`,
+        title: `New Site Visit Request from ${visitorRoleLabel}!`,
+        message: `${visitor?.name || 'A user'} (${visitorRoleLabel}) requested a site visit for "${property.title}" on ${data.visitDate} (${data.timeSlot}).`,
         type: NotificationType.SITE_VISIT_REQUEST,
         entityType: 'SiteVisit',
         entityId: siteVisit.id,
@@ -62,7 +75,7 @@ export class SiteVisitsService {
       orderBy: { visitDate: 'asc' },
       include: {
         property: { select: { id: true, title: true, locality: true, city: true, images: { take: 1 } } },
-        user: { select: { id: true, name: true, phone: true, email: true } },
+        user: { select: { id: true, name: true, phone: true, email: true, role: true, status: true, avatarUrl: true } },
       },
     });
   }

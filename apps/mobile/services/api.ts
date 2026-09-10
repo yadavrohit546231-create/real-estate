@@ -60,11 +60,19 @@ export async function mobileApi<T = any>(
 
     const json = await res.json();
     if (!res.ok) {
-      throw new Error(json.message || `Request failed with status ${res.status}`);
+      const err: any = new Error(
+        json.errors && json.errors.length
+          ? `${json.message || 'Validation failed'}: ${json.errors.join(', ')}`
+          : json.message || `Request failed with status ${res.status}`
+      );
+      err.errors = json.errors;
+      err.status = res.status;
+      throw err;
     }
 
     return json;
   } catch (err: any) {
+    if (err.errors) throw err;
     throw new Error(err.message || 'Network error: could not connect to server.');
   }
 }

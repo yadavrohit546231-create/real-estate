@@ -12,6 +12,7 @@ router.get('/dashboard', adminController.getDashboard);
 router.get('/properties/pending', adminController.getPendingProperties);
 router.post('/properties/:id/approve', adminController.approveProperty);
 router.post('/properties/:id/reject', adminController.rejectProperty);
+router.post('/properties/:id/toggle-featured', adminController.toggleFeaturedProperty);
 router.get('/properties', adminController.getAllProperties);
 router.get('/users', adminController.getAllUsers);
 router.patch('/users/:id/toggle-status', adminController.toggleUserStatus);

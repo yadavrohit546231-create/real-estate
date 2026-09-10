@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { mobileApi, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
+import { showToast } from '../../services/toast';
 import { formatPriceINR, buildWhatsAppLink } from '@real-estate/shared';
 
 export default function PropertyDetailScreen() {
@@ -84,10 +85,7 @@ export default function PropertyDetailScreen() {
 
   const handleCall = () => {
     if (!user) {
-      Alert.alert('Login Required', 'Please sign in to contact the property lister directly.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]);
+      router.push('/(auth)/login');
       return;
     }
     const phone = property.listedBy?.phone || property.owner?.phone;
@@ -98,10 +96,7 @@ export default function PropertyDetailScreen() {
 
   const handleWhatsApp = () => {
     if (!user) {
-      Alert.alert('Login Required', 'Please sign in to message the property lister on WhatsApp.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]);
+      router.push('/(auth)/login');
       return;
     }
     const phone = property.listedBy?.phone || property.owner?.phone;
@@ -113,10 +108,7 @@ export default function PropertyDetailScreen() {
 
   const handleOpenEnquiryModal = () => {
     if (!user) {
-      Alert.alert('Login Required', 'Please sign in to send an enquiry for this property.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]);
+      router.push('/(auth)/login');
       return;
     }
     setEnquiryModalVisible(true);
@@ -124,10 +116,7 @@ export default function PropertyDetailScreen() {
 
   const handleOpenVisitModal = () => {
     if (!user) {
-      Alert.alert('Login Required', 'Please sign in to schedule a site visit.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]);
+      router.push('/(auth)/login');
       return;
     }
     setVisitModalVisible(true);
@@ -135,7 +124,6 @@ export default function PropertyDetailScreen() {
 
   const handleSendEnquiry = async () => {
     if (!user) {
-      alert('Please log in to submit an enquiry.');
       router.push('/(auth)/login');
       return;
     }
@@ -162,7 +150,6 @@ export default function PropertyDetailScreen() {
 
   const handleScheduleVisit = async () => {
     if (!user) {
-      alert('Please log in to schedule a site visit.');
       router.push('/(auth)/login');
       return;
     }
@@ -224,7 +211,26 @@ export default function PropertyDetailScreen() {
 
           {/* Floating Actions */}
           <View style={styles.floatingActions}>
-            <TouchableOpacity style={styles.actionIconBtn} onPress={() => toggleFavorite(property.id)}>
+            <TouchableOpacity
+              style={styles.actionIconBtn}
+              onPress={async () => {
+                if (!property?.id) return;
+                if (!user) {
+                  router.push('/(auth)/login');
+                  return;
+                }
+                try {
+                  const added = await toggleFavorite(property.id);
+                  if (added) {
+                    showToast('Saved to your favorites!', 'success');
+                  } else {
+                    showToast('Removed from favorites', 'info');
+                  }
+                } catch {
+                  showToast('Could not update favorites. Try again.', 'error');
+                }
+              }}
+            >
               <Heart size={20} color={isFavorite ? '#ef4444' : '#0f172a'} fill={isFavorite ? '#ef4444' : 'none'} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionIconBtn} onPress={handleShare}>

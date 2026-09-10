@@ -50,40 +50,42 @@ export const ResetPasswordSchema = z.object({
 
 export const CreatePropertySchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(150),
-  description: z.string().min(20, 'Description must be at least 20 characters'),
+  description: z.string().min(10, 'Description must be at least 10 characters'),
   listingType: z.nativeEnum(ListingType),
   category: z.nativeEnum(PropertyCategory),
   propertyType: z.string().min(2, 'Property type is required'),
-  price: z.number().positive('Price must be greater than 0'),
-  rentAmount: z.number().positive().optional().nullable(),
-  securityDeposit: z.number().positive().optional().nullable(),
-  area: z.number().positive('Area must be greater than 0'),
+  price: z.coerce.number().positive('Price must be greater than 0'),
+  rentAmount: z.coerce.number().positive().optional().nullable(),
+  securityDeposit: z.coerce.number().positive().optional().nullable(),
+  area: z.coerce.number().positive('Area must be greater than 0'),
   areaUnit: z.nativeEnum(AreaUnit).default(AreaUnit.SQ_FT),
-  bedrooms: z.number().int().min(0).optional().nullable(),
-  bathrooms: z.number().int().min(0).optional().nullable(),
-  balconies: z.number().int().min(0).optional().nullable(),
-  floorNumber: z.number().int().optional().nullable(),
-  totalFloors: z.number().int().optional().nullable(),
+  bedrooms: z.coerce.number().int().min(0).optional().nullable(),
+  bathrooms: z.coerce.number().int().min(0).optional().nullable(),
+  balconies: z.coerce.number().int().min(0).optional().nullable(),
+  floorNumber: z.coerce.number().int().optional().nullable(),
+  totalFloors: z.coerce.number().int().optional().nullable(),
   furnishing: z.nativeEnum(FurnishingStatus).optional().nullable(),
   address: z.string().optional().nullable(),
   locality: z.string().min(2, 'Locality is required'),
   city: z.string().min(2, 'City is required'),
-  state: z.string().min(2, 'State is required'),
+  state: z.string().min(2, 'State is required').default('Bihar'),
   country: z.string().default('India'),
   pincode: z.string().min(4, 'Pincode is required'),
-  latitude: z.number().optional().nullable(),
-  longitude: z.number().optional().nullable(),
+  latitude: z.coerce.number().optional().nullable(),
+  longitude: z.coerce.number().optional().nullable(),
   amenityIds: z.array(z.string()).optional(),
+  amenities: z.array(z.string()).optional(),
   images: z
     .array(
       z.object({
-        url: z.string().url(),
-        thumbnailUrl: z.string().url().optional(),
-        sortOrder: z.number().default(0),
+        url: z.string().min(1, 'Image URL is required'),
+        thumbnailUrl: z.string().optional().nullable(),
+        sortOrder: z.coerce.number().default(0),
       })
     )
     .optional(),
   isDraft: z.boolean().optional().default(false),
+  featuredRequested: z.boolean().optional().default(false),
   listedAsRole: z.enum([UserRole.OWNER, UserRole.AGENT]).optional(),
 });
 
@@ -96,6 +98,7 @@ export const UpdatePropertySchema = CreatePropertySchema.partial();
 export const AdminPropertyReviewSchema = z.object({
   decision: z.nativeEnum(ApprovalDecision),
   reason: z.string().optional(),
+  makeFeatured: z.boolean().optional(),
 }).refine(
   (data) => {
     if (data.decision === ApprovalDecision.REJECTED || data.decision === ApprovalDecision.CHANGES_REQUESTED) {

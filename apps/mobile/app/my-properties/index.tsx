@@ -48,10 +48,14 @@ export default function MyPropertiesScreen() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (!user) {
+      router.replace('/(auth)/login');
+    } else {
       fetchMyProperties();
     }
   }, [user]);
+
+  if (!user) return null;
 
   const onRefresh = () => {
     setRefreshing(true);

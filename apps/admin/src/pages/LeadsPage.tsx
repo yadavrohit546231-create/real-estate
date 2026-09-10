@@ -57,8 +57,36 @@ export const LeadsPage: React.FC = () => {
                     <p className="text-xs text-slate-500">{lead.property?.locality}, {lead.property?.city}</p>
                   </td>
                   <td className="px-5 py-3.5 text-xs text-slate-700">
-                    <p className="font-bold text-slate-900">{lead.name}</p>
-                    <p className="text-slate-500">{lead.phone} • {lead.email}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-slate-900">{lead.name}</p>
+                      {lead.buyer?.role && (
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase border ${
+                            lead.buyer.role === 'AGENT'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : lead.buyer.role === 'BUILDER'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : lead.buyer.role === 'OWNER'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          {lead.buyer.role === 'AGENT'
+                            ? 'Agent'
+                            : lead.buyer.role === 'BUILDER'
+                            ? 'Builder'
+                            : lead.buyer.role === 'OWNER'
+                            ? 'Owner'
+                            : 'Buyer'}
+                        </span>
+                      )}
+                      {lead.buyer?.status && (
+                        <span className="text-[10px] text-slate-400">
+                          ({lead.buyer.status.toLowerCase()})
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-500 mt-0.5">{lead.phone} • {lead.email}</p>
                     {lead.message && (
                       <p className="text-slate-600 italic mt-1 bg-slate-50 p-1.5 rounded">"{lead.message}"</p>
                     )}

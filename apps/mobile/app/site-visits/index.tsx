@@ -3,8 +3,12 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator }
 import { Calendar, Clock, Check, X } from 'lucide-react-native';
 import { mobileApi } from '../../services/api';
 import { formatDate } from '@real-estate/shared';
+import { useRouter } from 'expo-router';
+import { useStore } from '../../store/useStore';
 
 export default function SiteVisitsScreen() {
+  const router = useRouter();
+  const { user } = useStore();
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,8 +25,14 @@ export default function SiteVisitsScreen() {
   };
 
   useEffect(() => {
-    fetchVisits();
-  }, []);
+    if (!user) {
+      router.replace('/(auth)/login');
+    } else {
+      fetchVisits();
+    }
+  }, [user]);
+
+  if (!user) return null;
 
   const handleStatusChange = async (visitId: string, action: 'accept' | 'reject') => {
     try {

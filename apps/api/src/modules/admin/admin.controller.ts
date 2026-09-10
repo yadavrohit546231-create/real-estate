@@ -28,10 +28,23 @@ export class AdminController {
     try {
       if (!req.user) return sendError(res, 'Unauthorized', 401);
       const { id } = req.params;
-      const approved = await adminService.approveProperty(id, req.user.userId);
+      const { makeFeatured } = req.body || {};
+      const approved = await adminService.approveProperty(id, req.user.userId, { makeFeatured: Boolean(makeFeatured) });
       return sendSuccess(res, approved, 'Property approved successfully');
     } catch (err: any) {
       return sendError(res, err.message || 'Failed to approve property', 400);
+    }
+  }
+
+  async toggleFeaturedProperty(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) return sendError(res, 'Unauthorized', 401);
+      const { id } = req.params;
+      const { isFeatured } = req.body || {};
+      const updated = await adminService.toggleFeaturedProperty(id, req.user.userId, isFeatured);
+      return sendSuccess(res, updated, 'Property featured status updated successfully');
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to toggle featured status', 400);
     }
   }
 

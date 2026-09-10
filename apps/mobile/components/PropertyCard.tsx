@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Heart, CheckCircle, Sparkles, MapPin } from 'lucide-react-native';
 import { formatPriceINR } from '@real-estate/shared';
 import { useStore } from '../store/useStore';
 import { resolveImageUrl } from '../services/api';
+import { showToast } from '../services/toast';
 
 interface PropertyCardProps {
   property: any;
@@ -11,6 +13,7 @@ interface PropertyCardProps {
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress }) => {
+  const router = useRouter();
   const { favorites, toggleFavorite, user } = useStore();
   const isFavorite = favorites.includes(property.id);
 
@@ -45,12 +48,21 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress })
         {/* Favorite Heart Button */}
         <TouchableOpacity
           style={styles.heartButton}
-          onPress={() => {
+          onPress={async () => {
             if (!user) {
-              Alert.alert('Login Required', 'Please login to save properties to your favorites.');
+              router.push('/(auth)/login');
               return;
             }
-            toggleFavorite(property.id);
+            try {
+              const added = await toggleFavorite(property.id);
+              if (added) {
+                showToast('Saved to your favorites!', 'success');
+              } else {
+                showToast('Removed from favorites', 'info');
+              }
+            } catch {
+              showToast('Could not update favorites. Try again.', 'error');
+            }
           }}
         >
           <Heart

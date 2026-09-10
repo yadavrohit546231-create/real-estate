@@ -1,6 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Heart } from 'lucide-react-native';
 import { PropertyCard } from '../../components/PropertyCard';
 import { useStore } from '../../store/useStore';
@@ -8,25 +16,46 @@ import { mobileApi } from '../../services/api';
 
 export default function SavedScreen() {
   const router = useRouter();
-  const { user, favorites } = useStore();
+  const { user, favorites, setFavorites } = useStore();
   const [favoriteProperties, setFavoriteProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchFavoriteListings = async () => {
+  const fetchFavoriteListings = useCallback(
+    async (isRefresh = false) => {
       if (!user) return;
       try {
-        setLoading(true);
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
         const res = await mobileApi('/favorites');
-        setFavoriteProperties(res.data || []);
+        const properties = res.data || [];
+        setFavoriteProperties(properties);
+        setFavorites(properties.map((p: any) => p.id));
       } catch (err) {
         console.log('Error loading favorites:', err);
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    };
-    fetchFavoriteListings();
-  }, [user, favorites]);
+    },
+    [user, setFavorites]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchFavoriteListings();
+      } else {
+        setFavoriteProperties([]);
+      }
+    }, [user, fetchFavoriteListings])
+  );
+
+  // Filter properties in real-time if a property was unfavorited in store
+  const displayProperties = favoriteProperties.filter((p) => favorites.includes(p.id));
 
   if (!user) {
     return (
@@ -45,9 +74,9 @@ export default function SavedScreen() {
 
   return (
     <View style={styles.container}>
-      {loading ? (
+      {loading && !refreshing && favoriteProperties.length === 0 ? (
         <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 40 }} />
-      ) : favoriteProperties.length === 0 ? (
+      ) : displayProperties.length === 0 ? (
         <View style={styles.centerContainer}>
           <Heart size={48} color="#cbd5e1" />
           <Text style={styles.title}>No saved properties yet</Text>
@@ -60,9 +89,16 @@ export default function SavedScreen() {
         </View>
       ) : (
         <FlatList
-          data={favoriteProperties}
+          data={displayProperties}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchFavoriteListings(true)}
+              colors={['#2563eb']}
+            />
+          }
           renderItem={({ item }) => (
             <PropertyCard
               property={item}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Filter, Eye, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { Search, Filter, Eye, Trash2, CheckCircle, Clock, Sparkles } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import { PropertyReviewModal } from '../components/PropertyReviewModal';
 import { apiFetch } from '../lib/api';
@@ -44,9 +44,24 @@ export const PropertiesPage: React.FC = () => {
     fetchProperties(1);
   };
 
-  const handleApprove = async (id: string) => {
-    await apiFetch(`/admin/properties/${id}/approve`, { method: 'POST' });
+  const handleApprove = async (id: string, makeFeatured?: boolean) => {
+    await apiFetch(`/admin/properties/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ makeFeatured }),
+    });
     fetchProperties(pagination.page);
+  };
+
+  const handleToggleFeatured = async (id: string, currentFeatured: boolean) => {
+    try {
+      await apiFetch(`/admin/properties/${id}/toggle-featured`, {
+        method: 'POST',
+        body: JSON.stringify({ isFeatured: !currentFeatured }),
+      });
+      fetchProperties(pagination.page);
+    } catch (err) {
+      console.error('Failed to toggle featured status:', err);
+    }
   };
 
   const handleReject = async (id: string, reason: string) => {
@@ -126,6 +141,7 @@ export const PropertiesPage: React.FC = () => {
                   <th className="px-5 py-3.5">City</th>
                   <th className="px-5 py-3.5">Price</th>
                   <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5">Featured</th>
                   <th className="px-5 py-3.5">Created</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
@@ -151,6 +167,26 @@ export const PropertiesPage: React.FC = () => {
                     </td>
                     <td className="px-5 py-3.5">
                       <StatusBadge status={prop.status} />
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        onClick={() => handleToggleFeatured(prop.id, prop.isFeatured)}
+                        title={prop.isFeatured ? 'Featured ON (Click to unfeature)' : prop.featuredRequested ? 'User Requested Featured (Click to approve)' : 'Click to Mark as Featured'}
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold transition-all border ${
+                          prop.isFeatured
+                            ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 shadow-sm'
+                            : prop.featuredRequested
+                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-amber-300 hover:text-amber-600'
+                        }`}
+                      >
+                        <Sparkles
+                          className={`w-3 h-3 mr-1 ${
+                            prop.isFeatured ? 'text-amber-600 fill-amber-500' : prop.featuredRequested ? 'text-amber-500' : 'text-slate-400'
+                          }`}
+                        />
+                        {prop.isFeatured ? 'Featured' : prop.featuredRequested ? 'Requested' : 'Standard'}
+                      </button>
                     </td>
                     <td className="px-5 py-3.5 text-xs text-slate-500">
                       {formatDate(prop.createdAt)}

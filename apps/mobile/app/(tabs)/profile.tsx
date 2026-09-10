@@ -23,16 +23,9 @@ export default function ProfileScreen() {
     router.replace('/(tabs)');
   };
 
-  const requireAuthNavigate = (path: string, featureName: string) => {
+  const requireAuthNavigate = (path: string, _featureName?: string) => {
     if (!user) {
-      Alert.alert(
-        'Login Required',
-        `You need to be signed in to access ${featureName}.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-        ]
-      );
+      router.push('/(auth)/login');
       return;
     }
     router.push(path as any);

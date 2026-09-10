@@ -294,6 +294,7 @@ model Property {
   status          PropertyStatus   @default(PENDING_REVIEW)
   isVerified      Boolean          @default(false)
   isFeatured      Boolean          @default(false)
+  featuredRequested Boolean        @default(false)
   featuredFrom    DateTime?
   featuredUntil   DateTime?
   rejectionReason String?          @db.Text
@@ -318,6 +319,7 @@ model Property {
   @@index([price])
   @@index([ownerId])
   @@index([isFeatured])
+  @@index([featuredRequested])
   @@index([createdAt])
 }
 

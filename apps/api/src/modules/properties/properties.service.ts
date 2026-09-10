@@ -2,6 +2,40 @@ import { prisma } from '../../config/database';
 import { PropertyStatus, UserRole } from '@real-estate/types';
 import { calculatePagination, maskPhoneNumber } from '@real-estate/shared';
 
+async function resolveAmenityIds(amenityIds?: string[], amenities?: string[]): Promise<string[]> {
+  const resultIds = new Set<string>(amenityIds || []);
+
+  if (amenities && Array.isArray(amenities) && amenities.length > 0) {
+    for (const rawName of amenities) {
+      const name = (rawName || '').trim();
+      if (!name) continue;
+      try {
+        let amenityRecord = await prisma.amenity.findFirst({
+          where: { name: { equals: name } },
+        });
+        if (!amenityRecord) {
+          amenityRecord = await prisma.amenity.create({
+            data: { name, category: 'Features' },
+          });
+        }
+        if (amenityRecord) {
+          resultIds.add(amenityRecord.id);
+        }
+      } catch (err) {
+        // Fallback in case of concurrent insert or unique collision
+        const existing = await prisma.amenity.findFirst({
+          where: { name: { equals: name } },
+        });
+        if (existing) {
+          resultIds.add(existing.id);
+        }
+      }
+    }
+  }
+
+  return Array.from(resultIds);
+}
+
 export class PropertiesService {
   async getProperties(query: any, requestingUser?: { userId: string; role: UserRole }) {
     const page = Math.max(1, parseInt(query.page || '1', 10));
@@ -249,11 +283,13 @@ export class PropertiesService {
     });
 
     const status = data.isDraft ? PropertyStatus.DRAFT : PropertyStatus.PENDING_REVIEW;
-    const { amenityIds, images, isDraft, listedAsRole, ...propertyFields } = data;
+    const { amenityIds, amenities: amenityNames, images, isDraft, listedAsRole, featuredRequested, ...propertyFields } = data;
+    const resolvedAmenityIds = await resolveAmenityIds(amenityIds, amenityNames);
 
     const newProperty = await prisma.property.create({
       data: {
         ...propertyFields,
+        featuredRequested: Boolean(featuredRequested),
         ownerId: userId,
         agentId: effectiveRole === UserRole.AGENT ? userId : undefined,
         status,
@@ -267,9 +303,9 @@ export class PropertiesService {
               })),
             }
           : undefined,
-        amenities: amenityIds && amenityIds.length > 0
+        amenities: resolvedAmenityIds.length > 0
           ? {
-              create: amenityIds.map((amenityId: string) => ({
+              create: resolvedAmenityIds.map((amenityId: string) => ({
                 amenity: { connect: { id: amenityId } },
               })),
             }
@@ -312,7 +348,7 @@ export class PropertiesService {
       throw new Error('Forbidden: You are not authorized to edit this property');
     }
 
-    const { amenityIds, images, isDraft, listedAsRole, ...updateFields } = data;
+    const { amenityIds, amenities: amenityNames, images, isDraft, listedAsRole, ...updateFields } = data;
 
     // Any edit to an existing property resets it for Super Admin review
     let nextStatus = existing.status;
@@ -331,6 +367,20 @@ export class PropertiesService {
           sortOrder: idx,
         })),
       });
+    }
+
+    // Update amenities if provided (either amenityIds or custom amenity names)
+    if (amenityIds !== undefined || amenityNames !== undefined) {
+      const resolvedAmenityIds = await resolveAmenityIds(amenityIds, amenityNames);
+      await prisma.propertyAmenity.deleteMany({ where: { propertyId } });
+      if (resolvedAmenityIds.length > 0) {
+        await prisma.propertyAmenity.createMany({
+          data: resolvedAmenityIds.map((amenityId: string) => ({
+            propertyId,
+            amenityId,
+          })),
+        });
+      }
     }
 
     const updated = await prisma.property.update({

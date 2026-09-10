@@ -12,11 +12,33 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Save, AlertCircle, Building2, Check, UploadCloud, X, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Save, AlertCircle, Building2, Check, UploadCloud, X, CheckCircle, Sparkles, Plus } from 'lucide-react-native';
 import { mobileApi, mobileUploadImage, resolveImageUrl } from '../../services/api';
 import { useStore } from '../../store/useStore';
 import { showToast } from '../../services/toast';
 import { formatPriceINR } from '@real-estate/shared';
+import { AmenityIcon } from '../../components/AmenityIcon';
+
+const POPULAR_AMENITY_SUGGESTIONS = [
+  'Lift / Elevator',
+  'Car Parking',
+  'Power Backup',
+  '24x7 Security',
+  'Gymnasium',
+  'Swimming Pool',
+  'Clubhouse',
+  'Park / Garden',
+  'CCTV Surveillance',
+  'Modular Kitchen',
+  'Water Storage (24x7)',
+  'Piped Gas',
+  'Fire Fighting System',
+  'Gated Society',
+  'Balcony',
+  'Vastu Compliant',
+  'Intercom',
+  'Children Play Area',
+];
 
 export default function EditPropertyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,11 +65,52 @@ export default function EditPropertyScreen() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [amenityInput, setAmenityInput] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [currentStatus, setCurrentStatus] = useState('DRAFT');
+  const [featuredRequested, setFeaturedRequested] = useState(false);
+
+  const handleAddAmenity = (nameToAdd?: string) => {
+    const raw = (nameToAdd !== undefined ? nameToAdd : amenityInput).trim();
+    if (!raw) return;
+
+    const items = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    setAmenities((prev) => {
+      const copy = [...prev];
+      for (const item of items) {
+        if (!copy.some((existing) => existing.toLowerCase() === item.toLowerCase())) {
+          copy.push(item);
+        }
+      }
+      return copy;
+    });
+
+    if (nameToAdd === undefined) {
+      setAmenityInput('');
+    }
+  };
+
+  const handleRemoveAmenity = (indexToRemove: number) => {
+    setAmenities((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleClearAllAmenities = () => {
+    setAmenities([]);
+  };
 
   useEffect(() => {
-    if (!id) return;
+    if (!user) {
+      router.replace('/(auth)/login');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!id || !user) return;
     const fetchPropertyDetails = async () => {
       try {
         setLoading(true);
@@ -75,6 +138,14 @@ export default function EditPropertyScreen() {
         setCity(p.city || '');
         setPincode(p.pincode || '');
         setCurrentStatus(p.status || 'DRAFT');
+        setFeaturedRequested(Boolean(p.featuredRequested));
+
+        if (p.amenities && Array.isArray(p.amenities)) {
+          const loaded = p.amenities
+            .map((item: any) => (item.amenity?.name || item.name || '').trim())
+            .filter(Boolean);
+          setAmenities(loaded);
+        }
 
         if (p.images && p.images.length > 0) {
           setImages(p.images.map((img: any) => img.url).filter(Boolean).slice(0, 4));
@@ -237,7 +308,9 @@ export default function EditPropertyScreen() {
         locality: locality.trim(),
         city: city.trim(),
         pincode: pincode.trim(),
+        amenities,
         images: images.map((url, idx) => ({ url: url.trim(), sortOrder: idx })),
+        featuredRequested,
       };
 
       await mobileApi(`/properties/${id}`, {
@@ -387,6 +460,137 @@ export default function EditPropertyScreen() {
           </View>
         </View>
 
+        {/* Amenities & Features */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeaderNoMargin}>Amenities & Features</Text>
+          <View style={styles.selectedCountPill}>
+            <Sparkles size={13} color="#2563eb" />
+            <Text style={styles.selectedCountPillText}>
+              {amenities.length} Added
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.subLabel}>
+          Add or update the amenities and community features for this property manually.
+        </Text>
+
+        {/* Manual Amenity Input Box */}
+        <Text style={styles.label}>Add Amenity or Feature</Text>
+        <View style={styles.amenityInputRow}>
+          <TextInput
+            style={styles.amenityInputField}
+            placeholder="e.g. Lift, 24/7 Security, Modular Kitchen"
+            placeholderTextColor="#94a3b8"
+            value={amenityInput}
+            onChangeText={setAmenityInput}
+            onSubmitEditing={() => handleAddAmenity()}
+            returnKeyType="done"
+          />
+          <TouchableOpacity
+            style={[
+              styles.addAmenityBtn,
+              !amenityInput.trim() && styles.addAmenityBtnDisabled,
+            ]}
+            onPress={() => handleAddAmenity()}
+            activeOpacity={0.7}
+          >
+            <Plus size={16} color="#ffffff" />
+            <Text style={styles.addAmenityBtnText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.amenityInputSubHint}>
+          💡 Tip: You can type multiple amenities separated by commas (e.g. Lift, Parking, CCTV) and tap Add.
+        </Text>
+
+        {/* Added Amenities Action & Count */}
+        <View style={styles.amenitiesStatusBar}>
+          <View style={styles.selectedCountPill}>
+            <Sparkles size={13} color="#2563eb" />
+            <Text style={styles.selectedCountPillText}>
+              {amenities.length} Features Added
+            </Text>
+          </View>
+          {amenities.length > 0 && (
+            <TouchableOpacity
+              onPress={handleClearAllAmenities}
+              style={styles.quickActionBtn}
+            >
+              <Text style={[styles.quickActionBtnText, { color: '#dc2626' }]}>Clear All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Added Amenities Badges */}
+        {amenities.length > 0 ? (
+          <View style={styles.addedAmenitiesWrap}>
+            {amenities.map((item, idx) => (
+              <View key={idx} style={styles.addedAmenityBadge}>
+                <AmenityIcon name={item} size={15} color="#2563eb" />
+                <Text style={styles.addedAmenityText}>{item}</Text>
+                <TouchableOpacity
+                  onPress={() => handleRemoveAmenity(idx)}
+                  style={styles.removeAmenityBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={14} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyAmenitiesBox}>
+            <Text style={styles.emptyAmenitiesTitle}>No amenities added yet</Text>
+            <Text style={styles.emptyAmenitiesSub}>
+              Type any feature in the input box above or tap quick suggestions below to add.
+            </Text>
+          </View>
+        )}
+
+        {/* Popular Quick Suggestions */}
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsTitle}>Quick Suggestions (Tap to add):</Text>
+          <View style={styles.suggestionsWrap}>
+            {POPULAR_AMENITY_SUGGESTIONS.map((sug) => {
+              const isAdded = amenities.some(
+                (a) => a.toLowerCase() === sug.toLowerCase()
+              );
+              return (
+                <TouchableOpacity
+                  key={sug}
+                  style={[
+                    styles.suggestionChip,
+                    isAdded && styles.suggestionChipAdded,
+                  ]}
+                  onPress={() => {
+                    if (isAdded) {
+                      setAmenities((prev) =>
+                        prev.filter((a) => a.toLowerCase() !== sug.toLowerCase())
+                      );
+                    } else {
+                      handleAddAmenity(sug);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {isAdded ? (
+                    <Check size={12} color="#16a34a" />
+                  ) : (
+                    <Plus size={12} color="#475569" />
+                  )}
+                  <Text
+                    style={[
+                      styles.suggestionChipText,
+                      isAdded && styles.suggestionChipTextAdded,
+                    ]}
+                  >
+                    {sug}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Location Info */}
         <Text style={styles.sectionHeader}>Location Information</Text>
         <Text style={styles.label}>Locality / Sector *</Text>
@@ -510,6 +714,48 @@ export default function EditPropertyScreen() {
             </Text>
           </View>
         )}
+
+        {/* Featured Spotlight Request Option */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setFeaturedRequested(!featuredRequested)}
+          style={[
+            styles.featuredRequestBox,
+            featuredRequested && styles.featuredRequestBoxActive,
+          ]}
+        >
+          <View style={styles.featuredRequestLeft}>
+            <View
+              style={[
+                styles.featuredIconWrap,
+                featuredRequested && styles.featuredIconWrapActive,
+              ]}
+            >
+              <Sparkles size={18} color={featuredRequested ? '#d97706' : '#64748b'} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Text style={styles.featuredRequestTitle}>
+                  Request "Featured" Spotlight
+                </Text>
+                <View style={styles.featuredFreeBadge}>
+                  <Text style={styles.featuredFreeBadgeText}>SPOTLIGHT</Text>
+                </View>
+              </View>
+              <Text style={styles.featuredRequestSubtitle}>
+                Ask Super Admin to feature your property on the Home Screen carousel for 10x higher buyer visibility.
+              </Text>
+            </View>
+          </View>
+          <View
+            style={[
+              styles.checkboxBox,
+              featuredRequested && styles.checkboxBoxActive,
+            ]}
+          >
+            {featuredRequested && <Check size={14} color="#ffffff" strokeWidth={3} />}
+          </View>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Sticky Save Footer */}
@@ -867,5 +1113,255 @@ const styles = StyleSheet.create({
     flex: 1,
     fontWeight: '600',
     lineHeight: 16,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  selectedCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  selectedCountPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  amenitiesStatusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  amenityInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  amenityInputField: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0f172a',
+  },
+  addAmenityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  addAmenityBtnDisabled: {
+    backgroundColor: '#94a3b8',
+    opacity: 0.7,
+  },
+  addAmenityBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  amenityInputSubHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 14,
+    lineHeight: 16,
+  },
+  addedAmenitiesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
+  },
+  addedAmenityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  addedAmenityText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1e40af',
+  },
+  removeAmenityBtn: {
+    padding: 2,
+    marginLeft: 2,
+  },
+  emptyAmenitiesBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  emptyAmenitiesTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  emptyAmenitiesSub: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  suggestionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  suggestionChipAdded: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+  },
+  suggestionChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  suggestionChipTextAdded: {
+    color: '#16a34a',
+  },
+  quickActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  quickActionBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  featuredRequestBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  featuredRequestBoxActive: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+  },
+  featuredRequestLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    marginRight: 10,
+  },
+  featuredIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  featuredIconWrapActive: {
+    backgroundColor: '#fef3c7',
+  },
+  featuredRequestTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  featuredFreeBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  featuredFreeBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#b45309',
+    letterSpacing: 0.5,
+  },
+  featuredRequestSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxActive: {
+    backgroundColor: '#d97706',
+    borderColor: '#d97706',
   },
 });

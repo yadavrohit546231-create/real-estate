@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle, AlertTriangle, Search, Filter } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, Search, Filter, Sparkles } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import { PropertyReviewModal } from '../components/PropertyReviewModal';
 import { apiFetch } from '../lib/api';
@@ -27,8 +27,11 @@ export const PendingPropertiesPage: React.FC = () => {
     fetchPendingProperties();
   }, []);
 
-  const handleApprove = async (id: string) => {
-    await apiFetch(`/admin/properties/${id}/approve`, { method: 'POST' });
+  const handleApprove = async (id: string, makeFeatured?: boolean) => {
+    await apiFetch(`/admin/properties/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ makeFeatured }),
+    });
     fetchPendingProperties();
   };
 
@@ -128,7 +131,15 @@ export const PendingPropertiesPage: React.FC = () => {
                           <p className="text-xs text-slate-500 mt-0.5">
                             {prop.locality}, {prop.city}
                           </p>
-                          <span className="text-[11px] text-slate-400 font-mono">ID: {prop.id.slice(0, 8)}...</span>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className="text-[11px] text-slate-400 font-mono">ID: {prop.id.slice(0, 8)}...</span>
+                            {prop.featuredRequested && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <Sparkles className="w-2.5 h-2.5 mr-1 text-amber-600" />
+                                Featured Req.
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>

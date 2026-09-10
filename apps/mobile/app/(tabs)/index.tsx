@@ -17,6 +17,8 @@ import { LocationModal } from '../../components/LocationModal';
 import { useStore } from '../../store/useStore';
 import { mobileApi } from '../../services/api';
 
+export type HomeFilterType = 'ALL' | 'BUY' | 'RENT' | 'COMMERCIAL' | 'PG';
+
 export default function HomeScreen() {
   const router = useRouter();
   const { selectedCity, user } = useStore();
@@ -25,6 +27,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
   const [recommendedProperties, setRecommendedProperties] = useState<any[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState<HomeFilterType>('ALL');
 
   const fetchHomeData = async () => {
     try {
@@ -34,11 +37,11 @@ export default function HomeScreen() {
         : '';
 
       // Fetch featured properties
-      const featuredRes = await mobileApi(`/properties?${cityQuery}isFeatured=true&limit=10`);
+      const featuredRes = await mobileApi(`/properties?${cityQuery}isFeatured=true&limit=15`);
       setFeaturedProperties(featuredRes.data?.data || []);
 
-      // Fetch all recommended/recent live properties
-      const recRes = await mobileApi(`/properties?${cityQuery}limit=30`);
+      // Fetch all recommended/recent live properties (generous limit for smooth client filtering)
+      const recRes = await mobileApi(`/properties?${cityQuery}limit=60`);
       setRecommendedProperties(recRes.data?.data || []);
     } catch (err) {
       console.log('Error loading home data:', err);
@@ -57,11 +60,53 @@ export default function HomeScreen() {
     fetchHomeData();
   };
 
+  const isPropertyInFilter = (p: any, filter: HomeFilterType) => {
+    if (filter === 'ALL') return true;
+
+    const pCat = (p.category || '').toUpperCase();
+    const pType = (p.propertyType || '').toLowerCase();
+    const isCommercial = pCat === 'COMMERCIAL' || ['office', 'shop', 'showroom', 'warehouse', 'commercial'].some((k) => pType.includes(k));
+    const isPG = pCat === 'PG' || pType.includes('pg') || pType.includes('hostel');
+
+    if (filter === 'BUY') {
+      return p.listingType === 'SALE' && !isCommercial;
+    }
+    if (filter === 'RENT') {
+      return p.listingType === 'RENT' && !isCommercial && !isPG;
+    }
+    if (filter === 'COMMERCIAL') {
+      return isCommercial;
+    }
+    if (filter === 'PG') {
+      return isPG;
+    }
+    return true;
+  };
+
+  const filteredRecommended = recommendedProperties.filter((p) => isPropertyInFilter(p, selectedFilter));
+  const filteredFeatured = featuredProperties.filter((p) => isPropertyInFilter(p, selectedFilter));
+
+  const counts: Record<HomeFilterType, number> = {
+    ALL: recommendedProperties.length,
+    BUY: recommendedProperties.filter((p) => isPropertyInFilter(p, 'BUY')).length,
+    RENT: recommendedProperties.filter((p) => isPropertyInFilter(p, 'RENT')).length,
+    COMMERCIAL: recommendedProperties.filter((p) => isPropertyInFilter(p, 'COMMERCIAL')).length,
+    PG: recommendedProperties.filter((p) => isPropertyInFilter(p, 'PG')).length,
+  };
+
   const categories = [
-    { id: 'BUY', label: 'Buy', icon: HomeIcon, color: '#2563eb', bg: '#eff6ff', type: 'SALE' },
-    { id: 'RENT', label: 'Rent', icon: Building, color: '#10b981', bg: '#ecfdf5', type: 'RENT' },
-    { id: 'COMMERCIAL', label: 'Commercial', icon: Briefcase, color: '#f59e0b', bg: '#fffbeb', category: 'COMMERCIAL' },
-    { id: 'PG', label: 'PG / Hostel', icon: Users, color: '#8b5cf6', bg: '#f5f3ff', category: 'PG' },
+    { id: 'BUY' as HomeFilterType, label: 'Buy', icon: HomeIcon, color: '#2563eb', bg: '#eff6ff' },
+    { id: 'RENT' as HomeFilterType, label: 'Rent', icon: Building, color: '#10b981', bg: '#ecfdf5' },
+    { id: 'COMMERCIAL' as HomeFilterType, label: 'Commercial', icon: Briefcase, color: '#f59e0b', bg: '#fffbeb' },
+    { id: 'PG' as HomeFilterType, label: 'PG / Hostel', icon: Users, color: '#8b5cf6', bg: '#f5f3ff' },
+  ];
+
+  const filterTabs: { id: HomeFilterType; label: string; icon: any }[] = [
+    { id: 'ALL', label: 'All Listings', icon: Sparkles },
+    { id: 'BUY', label: 'Buy', icon: HomeIcon },
+    { id: 'RENT', label: 'Rent', icon: Building },
+    { id: 'COMMERCIAL', label: 'Commercial', icon: Briefcase },
+    { id: 'PG', label: 'PG / Hostel', icon: Users },
   ];
 
   return (
@@ -107,61 +152,107 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Categories Grid */}
+        {/* Categories Grid (Click to filter or toggle back to All) */}
         <View style={styles.categoriesContainer}>
           {categories.map((cat) => {
             const Icon = cat.icon;
+            const isSelected = selectedFilter === cat.id;
             return (
               <TouchableOpacity
                 key={cat.id}
-                style={styles.categoryItem}
+                style={[
+                  styles.categoryItem,
+                  isSelected && styles.categoryItemActive,
+                ]}
                 onPress={() => {
-                  router.push({
-                    pathname: '/(tabs)/search',
-                    params: cat.type ? { listingType: cat.type } : { category: cat.category },
-                  });
+                  setSelectedFilter((prev) => (prev === cat.id ? 'ALL' : cat.id));
                 }}
+                activeOpacity={0.75}
               >
-                <View style={[styles.categoryIconWrap, { backgroundColor: cat.bg }]}>
-                  <Icon size={24} color={cat.color} />
+                <View
+                  style={[
+                    styles.categoryIconWrap,
+                    { backgroundColor: isSelected ? cat.color : cat.bg },
+                    isSelected && styles.categoryIconWrapActive,
+                  ]}
+                >
+                  <Icon size={24} color={isSelected ? '#ffffff' : cat.color} />
                 </View>
-                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Text
+                  style={[
+                    styles.categoryLabel,
+                    isSelected && { color: cat.color, fontWeight: '800' },
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+                {isSelected && (
+                  <View style={[styles.categoryActiveDot, { backgroundColor: cat.color }]} />
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Post Property Banner for Owners & Agents */}
-        <View style={styles.banner}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Are you a Property Owner?</Text>
-            <Text style={styles.bannerSubtitle}>
-              Post your property for FREE & connect with verified buyers.
-            </Text>
+        {/* Post Property Banner for Owners (Hidden for logged-in AGENT, BUILDER, OWNER) */}
+        {(!user || user.role === 'BUYER') && (
+          <View style={styles.banner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle}>Are you a Property Owner?</Text>
+              <Text style={styles.bannerSubtitle}>
+                Post your property for FREE & connect with verified buyers.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.bannerBtn}
+              onPress={() => {
+                if (!user) {
+                  router.push('/(auth)/login');
+                } else {
+                  router.push('/post-property');
+                }
+              }}
+            >
+              <Text style={styles.bannerBtnText}>Post Now</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.bannerBtn}
-            onPress={() => {
-              if (!user) {
-                Alert.alert(
-                  'Login Mandatory',
-                  'You must be signed in to post or list your property.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-                  ]
-                );
-              } else {
-                router.push('/post-property');
-              }
-            }}
+        )}
+
+        {/* Filter Pills Bar: [All Listings, Buy, Rent, Commercial, PG / Hostel] */}
+        <View style={styles.filterSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterPillsScroll}
           >
-            <Text style={styles.bannerBtnText}>Post Now</Text>
-          </TouchableOpacity>
+            {filterTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = selectedFilter === tab.id;
+              const count = counts[tab.id] ?? 0;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.filterPill, isActive && styles.filterPillActive]}
+                  onPress={() => setSelectedFilter(tab.id)}
+                  activeOpacity={0.75}
+                >
+                  <Icon size={14} color={isActive ? '#ffffff' : '#64748b'} />
+                  <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                    {tab.label}
+                  </Text>
+                  <View style={[styles.filterPillBadge, isActive && styles.filterPillBadgeActive]}>
+                    <Text style={[styles.filterPillBadgeText, isActive && styles.filterPillBadgeTextActive]}>
+                      {count}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
-        {/* Featured Properties Horizontal Scroll */}
-        {featuredProperties.length > 0 && (
+        {/* Featured Properties Horizontal Scroll (Filtered if active filter matches) */}
+        {filteredFeatured.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
@@ -170,7 +261,7 @@ export default function HomeScreen() {
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalList}>
-              {featuredProperties.map((prop) => (
+              {filteredFeatured.map((prop) => (
                 <View key={prop.id} style={{ width: 280, marginRight: 14 }}>
                   <PropertyCard
                     property={prop}
@@ -182,22 +273,55 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Recommended Properties */}
+        {/* Recommended & Filtered Listings */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recommended in {selectedCity}</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>
+                {selectedFilter === 'ALL'
+                  ? `Recommended in ${selectedCity}`
+                  : selectedFilter === 'BUY'
+                  ? `Properties for Sale in ${selectedCity}`
+                  : selectedFilter === 'RENT'
+                  ? `Properties for Rent in ${selectedCity}`
+                  : selectedFilter === 'COMMERCIAL'
+                  ? `Commercial Spaces in ${selectedCity}`
+                  : `PG & Hostels in ${selectedCity}`}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {selectedFilter === 'ALL'
+                  ? 'Miscellaneous listings & recent additions'
+                  : `Filtered by ${selectedFilter} • Tap "All Listings" to reset`}
+              </Text>
+            </View>
+            <View style={styles.countTag}>
+              <Text style={styles.countTagText}>
+                {filteredRecommended.length} {filteredRecommended.length === 1 ? 'Listing' : 'Listings'}
+              </Text>
+            </View>
           </View>
 
           {loading && !refreshing ? (
             <ActivityIndicator size="large" color="#2563eb" style={{ marginVertical: 30 }} />
-          ) : recommendedProperties.length === 0 ? (
+          ) : filteredRecommended.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No properties currently listed in {selectedCity}.</Text>
-              <Text style={styles.emptySubtext}>Try switching cities or check back soon!</Text>
+              <Text style={styles.emptyText}>
+                No {selectedFilter === 'BUY' ? 'Sale' : selectedFilter === 'RENT' ? 'Rental' : selectedFilter} properties currently available in {selectedCity}.
+              </Text>
+              <Text style={styles.emptySubtext}>
+                Tap below to view all available listings across all categories.
+              </Text>
+              <TouchableOpacity
+                style={styles.resetFilterBtn}
+                onPress={() => setSelectedFilter('ALL')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.resetFilterBtnText}>Show All Properties (Miscellaneous)</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={{ paddingHorizontal: 16 }}>
-              {recommendedProperties.map((prop) => (
+              {filteredRecommended.map((prop) => (
                 <PropertyCard
                   key={prop.id}
                   property={prop}
@@ -376,5 +500,111 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  categoryItemActive: {
+    transform: [{ scale: 1.05 }],
+  },
+  categoryIconWrapActive: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  categoryActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 4,
+  },
+  filterSection: {
+    marginVertical: 10,
+  },
+  filterPillsScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 6,
+  },
+  filterPillActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  filterPillTextActive: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  filterPillBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    backgroundColor: '#e2e8f0',
+  },
+  filterPillBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  filterPillBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  filterPillBadgeTextActive: {
+    color: '#ffffff',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  countTag: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  countTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1d4ed8',
+  },
+  resetFilterBtn: {
+    marginTop: 14,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  resetFilterBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

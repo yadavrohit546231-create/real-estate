@@ -248,6 +248,7 @@ export interface PropertySummary {
   status: PropertyStatus;
   isVerified: boolean;
   isFeatured: boolean;
+  featuredRequested?: boolean;
   featuredFrom?: string | Date | null;
   featuredUntil?: string | Date | null;
   rejectionReason?: string | null;

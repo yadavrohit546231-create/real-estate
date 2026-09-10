@@ -105,10 +105,14 @@ export class AdminService {
     };
   }
 
-  async approveProperty(propertyId: string, adminId: string) {
+  async approveProperty(propertyId: string, adminId: string, options?: { makeFeatured?: boolean }) {
     return prisma.$transaction(async (tx) => {
       const property = await tx.property.findUnique({ where: { id: propertyId } });
       if (!property) throw new Error('Property not found');
+
+      const shouldFeature = options?.makeFeatured ?? false;
+      const now = new Date();
+      const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const updated = await tx.property.update({
         where: { id: propertyId },
@@ -116,6 +120,13 @@ export class AdminService {
           status: PropertyStatus.LIVE,
           isVerified: true,
           rejectionReason: null,
+          ...(shouldFeature
+            ? {
+                isFeatured: true,
+                featuredFrom: now,
+                featuredUntil: thirtyDaysLater,
+              }
+            : {}),
         },
       });
 
@@ -131,7 +142,9 @@ export class AdminService {
         data: {
           userId: property.ownerId,
           title: 'Property Listing Approved!',
-          message: `Your property "${property.title}" has been approved and is now LIVE on the platform.`,
+          message: shouldFeature
+            ? `Your property "${property.title}" has been approved and featured on the home screen!`
+            : `Your property "${property.title}" has been approved and is now LIVE on the platform.`,
           type: NotificationType.PROPERTY_APPROVED,
           entityType: 'Property',
           entityId: property.id,
@@ -141,10 +154,42 @@ export class AdminService {
       await tx.adminAction.create({
         data: {
           adminId,
-          action: 'PROPERTY_APPROVED',
+          action: shouldFeature ? 'PROPERTY_APPROVED_AND_FEATURED' : 'PROPERTY_APPROVED',
           entityType: 'Property',
           entityId: property.id,
-          metadata: JSON.stringify({ propertyTitle: property.title }),
+          metadata: JSON.stringify({ propertyTitle: property.title, isFeatured: shouldFeature }),
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  async toggleFeaturedProperty(propertyId: string, adminId: string, isFeatured?: boolean) {
+    return prisma.$transaction(async (tx) => {
+      const property = await tx.property.findUnique({ where: { id: propertyId } });
+      if (!property) throw new Error('Property not found');
+
+      const nextFeatured = isFeatured !== undefined ? isFeatured : !property.isFeatured;
+      const now = new Date();
+      const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const updated = await tx.property.update({
+        where: { id: propertyId },
+        data: {
+          isFeatured: nextFeatured,
+          featuredFrom: nextFeatured ? now : null,
+          featuredUntil: nextFeatured ? thirtyDaysLater : null,
+        },
+      });
+
+      await tx.adminAction.create({
+        data: {
+          adminId,
+          action: nextFeatured ? 'PROPERTY_FEATURED' : 'PROPERTY_UNFEATURED',
+          entityType: 'Property',
+          entityId: property.id,
+          metadata: JSON.stringify({ propertyTitle: property.title, isFeatured: nextFeatured }),
         },
       });
 
@@ -228,7 +273,8 @@ export class AdminService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          images: { take: 1 },
+          images: true,
+          amenities: { include: { amenity: true } },
           owner: { select: { id: true, name: true, email: true, phone: true } },
         },
       }),
